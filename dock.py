@@ -242,28 +242,60 @@ except subprocess.CalledProcessError as e:
 
 cmd.reinitialize()
 
+def set_visualization_and_focus():
+    cmd.show('cartoon', 'all')
+    cmd.bg_color('white')  # Ustaw białe tło
+    
+    # Wyśrodkowanie i skalowanie
+    cmd.orient()           # Dopasowanie kamery do struktury
+    cmd.zoom('all', buffer=1)  # Ustaw minimalny margines (buffer)
+    
+    # Dostosowanie przycięcia wzdłuż osi Z
+    cmd.clip('near', -10)  # Dostosowanie bliskiego cięcia
+    cmd.clip('far', 10)    # Dostosowanie dalekiego cięcia
+    
+    # Ustawienia renderowania
+    cmd.set('ray_trace_mode', 1)
+    cmd.set('orthoscopic', 1)  # Wyłącz perspektywę
+    cmd.set('ray_trace_frames', 1)
+    cmd.set('antialias', 2)    # Wyższa jakość renderingu
+    cmd.set('ambient', 0.5)    # Popraw oświetlenie
+    cmd.set('spec_reflect', 0.5)  # Dodaj refleksy świetlne
+    cmd.set('specular', 1)     # Zwiększ połysk powierzchni
+
+# Generowanie pierwszego obrazka
 cmd.load(f'{folder_name}/{output}')
 cmd.load(receptor_pdb)
-
-cmd.show('cartoon')
 cmd.color('cyan', 'all')
 cmd.color('red', f"{output.split('.')[0]}")
-cmd.set('ray_trace_frames', 1)
 
+set_visualization_and_focus()
+
+cmd.ray(1920, 1080)
 output_image_path = f'{folder_name}/{receptor_name}_{ligand_name}_image.png'
-cmd.png(output_image_path)
+cmd.png(output_image_path, width=1920, height=1080, dpi=300)
+print(f"Pierwszy obrazek zapisany jako: {output_image_path}")
 
 combined_pdb_path = f'{folder_name}/{receptor_name}_{ligand_name}_best.pdb'
 cmd.save(combined_pdb_path, 'all', -1)
 
+# Generowanie drugiego obrazka
 cmd.reinitialize()
 cmd.load(f'{folder_name}/{receptor_name}_{ligand_name}_best.pdb', 'docking')
-cmd.color('cyan', 'docking')
 cmd.load(f'{folder_name}/{receptor_name}_dirty.pdb', 'RealStructure')
-cmd.color('green', 'RealStructure')
 cmd.align('docking', 'RealStructure')
-cmd.show('cartoon')
+
+cmd.color('cyan', 'docking')
+cmd.color('green', 'RealStructure')
+cmd.show('cartoon', 'docking')
+cmd.show('cartoon', 'RealStructure')
+
+set_visualization_and_focus()
+
+cmd.ray(1920, 1080)
 output_image_path = f'{folder_name}/alignment.png'
-cmd.png(output_image_path)
+cmd.png(output_image_path, width=1920, height=1080, dpi=300)
+print(f"Drugi obrazek zapisany jako: {output_image_path}")
+
 combined_pdb_path = f'{folder_name}/aligned.pdb'
 cmd.save(combined_pdb_path, 'all', -1)
