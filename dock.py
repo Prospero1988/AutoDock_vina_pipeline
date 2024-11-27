@@ -53,42 +53,26 @@ def fetch_smiles_from_cid(cid):
     return compound.isomeric_smiles
 
 def generate_minimized_pdb(smiles, pdb_filename):
-    # Generowanie molekuły z SMILES
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        raise ValueError("Nie udało się wygenerować molekuły z SMILES.")
-    else:
-        print("Molekuła została poprawnie wygenerowana z SMILES.")
-
-    # Dodawanie atomów wodoru
-    mol = Chem.AddHs(mol)
-
-    # Generowanie współrzędnych 3D
-    # Generowanie współrzędnych 3D
-    if AllChem.EmbedMolecule(mol, AllChem.ETKDG()) == -1:
-        raise ValueError("Nie udało się wygenerować współrzędnych 3D dla molekuły.")
-
-    # Próbuj najpierw z MMFF
-    if AllChem.MMFFHasAllMoleculeParams(mol):
-        print("Rozpoczęto minimalizację energii przy użyciu MMFF...")
-        result = AllChem.MMFFOptimizeMolecule(mol)
-        if result != 0:
-            raise RuntimeError("Minimalizacja energii przy użyciu MMFF nie powiodła się.")
-        print("Minimalizacja energii przy użyciu MMFF zakończona sukcesem.")
-    else:
-        print("MMFF nie jest obsługiwane dla tej molekuły. Próbuję z UFF...")
-        # Jeśli MMFF nie działa, użyj UFF jako zapasowego
-        result = AllChem.UFFOptimizeMolecule(mol)
-        if result != 0:
-            raise RuntimeError("Minimalizacja energii przy użyciu UFF nie powiodła się.")
-        print("Minimalizacja energii przy użyciu UFF zakończona sukcesem.")
-
-    # Sanitacja molekuły
-    Chem.SanitizeMol(mol)
-
-    # Zapis jako PDB
-    Chem.MolToPDBFile(mol, pdb_filename)
-    print(f"Zminimalizowana molekuła została zapisana jako {pdb_filename}")
+    # Create a temporary SMILES file
+    smiles_file = f"{folder_name}/temp_smiles.smi"
+    with open(smiles_file, 'w') as f:
+        f.write(smiles)
+    
+    # Use Open Babel to generate 3D coordinates and minimize the molecule
+    try:
+        subprocess.run([
+            OBABEL_PATH,
+            "-i", "smi", smiles_file,
+            "-o", "pdb", "-O", pdb_filename,
+            "--gen3D", "--minimize"
+        ], check=True)
+        print(f"Zminimalizowana molekuła została zapisana jako {pdb_filename}")
+    except subprocess.CalledProcessError as e:
+        print(f"Błąd podczas generowania i minimalizacji molekuły za pomocą Open Babel: {e}")
+        sys.exit(1)
+    finally:
+        # Clean up temporary file
+        os.remove(smiles_file)
 
 cid = pubchem_ID
 pdb_filename = f'{folder_name}/{ligand_name}.pdb'
@@ -211,15 +195,28 @@ if not os.path.exists(predictions_csv):
 if not os.path.exists(residues_csv):
     raise FileNotFoundError(f"Plik {residues_csv} nie został znaleziony.")
 
+# Wczytanie plików CSV
 df = pd.read_csv(predictions_csv)
+pred = pd.read_csv(residues_csv)
+
+# Usuń białe znaki z nazw kolumn
+df.columns = df.columns.str.strip()
+pred.columns = pred.columns.str.strip()
+
+# Debugowanie - wyświetlenie nazw kolumn
+print("Kolumny w df:", df.columns.tolist())
+print("Kolumny w pred:", pred.columns.tolist())
+
+# Uzyskanie wartości center_x, center_y, center_z
 center_x = float(df['center_x'].iloc[0])
 center_y = float(df['center_y'].iloc[0])
 center_z = float(df['center_z'].iloc[0])
 
-pred = pd.read_csv(residues_csv)
+# Selekcja reszt dla kieszeni 1
 pocket1 = pred[pred['pocket'] == 1]
 resi_numbers = [str(res).strip() for res in pocket1['residue_label']]
 resi = '+'.join(resi_numbers)
+
 
 # Continue with your PyMOL commands
 cmd.load(receptor_pdb)
@@ -234,7 +231,7 @@ for atom in model.atom:
 alpha_carbons = np.array(alpha_carbons)
 min_coords = np.min(alpha_carbons, axis=0)
 max_coords = np.max(alpha_carbons, axis=0)
-cube_size = max_coords - min_coords + 10
+cube_size = max_coords - min_coords + 5
 Size_x, Size_y, Size_z = cube_size
 
 print(f"Center coordinates: x={center_x}, y={center_y}, z={center_z}")
@@ -251,7 +248,8 @@ vina_command = [
     '--center_z', str(center_z),
     '--size_x', str(Size_x),
     '--size_y', str(Size_y),
-    '--size_z', str(Size_z)
+    '--size_z', str(Size_z),
+    '--exhaustiveness', '16',
 ]
 try:
     subprocess.run(vina_command, check=True)
