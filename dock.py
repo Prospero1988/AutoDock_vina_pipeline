@@ -115,42 +115,25 @@ shutil.move(source, destination)
 def fix_pdb(input_pdb, output_pdb, ph=7.0, chain_id='A'):
     fixer = PDBFixer(filename=input_pdb)
     
-    # Usuń wszystkie łańcuchy poza wskazanym
+    # Remove all chains except the specified chain
     fixer.removeChains([chain.id for chain in fixer.topology.chains() if chain.id != chain_id])
     fixer.findMissingResidues()
-
-    # Pobierz listę reszt z wybranego łańcucha
-    selected_chain = None
-    for chain in fixer.topology.chains():
-        if chain.id == chain_id:
-            selected_chain = chain
-            break
-
-    if selected_chain is None:
-        raise ValueError(f"Nie znaleziono łańcucha o ID '{chain_id}' w strukturze.")
-
-    chain_residues = list(selected_chain.residues())
-    print(f"Reszty w łańcuchu {chain_id}: {[res for res in chain_residues]}")
-
-    # Usuń brakujące reszty na końcach łańcucha
-    fixer.missingResidues = {
-        key: val
-        for key, val in fixer.missingResidues.items()
-        if not (key[1] == 0 or key[1] == len(chain_residues) - 1)
-    }
-
-    # Znajdź i dodaj brakujące atomy oraz wodory
+    
+    # Remove heterogens (including water)
+    fixer.removeHeterogens(keepWater=False)
+    
+    # Find missing atoms and add them
     fixer.findMissingAtoms()
     fixer.addMissingAtoms()
+    
+    # Add missing hydrogens
     fixer.addMissingHydrogens(ph)
-
-    # Zapisz wynik do pliku
+    
+    # Save the fixed PDB file
     with open(output_pdb, 'w') as outfile:
         PDBFile.writeFile(fixer.topology, fixer.positions, outfile)
-
+    
     print(f"Naprawiony PDB zapisany jako {output_pdb}")
-
-
 
 
 fixed_pdb = f'{folder_name}/{receptor_name}_fixed.pdb'
