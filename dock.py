@@ -12,6 +12,7 @@ import shutil
 import subprocess
 from pdbfixer import PDBFixer
 from openmm.app import PDBFile
+import sys
 
 # Ścieżki do narzędzi
 P2RANK_PATH = "/usr/local/bin/prank"
@@ -63,13 +64,15 @@ def generate_minimized_pdb(smiles, pdb_filename):
     mol = Chem.AddHs(mol)
 
     # Generowanie współrzędnych 3D
-    AllChem.EmbedMolecule(mol)
+    # Generowanie współrzędnych 3D
+    if AllChem.EmbedMolecule(mol, AllChem.ETKDG()) == -1:
+        raise ValueError("Nie udało się wygenerować współrzędnych 3D dla molekuły.")
 
     # Próbuj najpierw z MMFF
     if AllChem.MMFFHasAllMoleculeParams(mol):
         print("Rozpoczęto minimalizację energii przy użyciu MMFF...")
         result = AllChem.MMFFOptimizeMolecule(mol)
-        if result == 0:
+        if result != 0:
             raise RuntimeError("Minimalizacja energii przy użyciu MMFF nie powiodła się.")
         print("Minimalizacja energii przy użyciu MMFF zakończona sukcesem.")
     else:
@@ -98,10 +101,26 @@ def download_pdb(pdb_id, download_dir):
 
     pdbl = PDBList()
     pdb_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='pdb', pdir=download_dir)
-    if not os.path.exists(pdb_file_path):
+
+    # Handle compressed files
+    if pdb_file_path.endswith('.gz'):
+        import gzip
+        with gzip.open(pdb_file_path, 'rb') as f_in:
+            uncompressed_path = pdb_file_path[:-3]  # Remove '.gz'
+            with open(uncompressed_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        os.remove(pdb_file_path)
+        pdb_file_path = uncompressed_path
+
+    # The file might be named like 'pdbXXXX.ent'
+    expected_filename = os.path.join(download_dir, f"{pdb_id.lower()}.pdb")
+    os.rename(pdb_file_path, expected_filename)
+
+    if not os.path.exists(expected_filename):
         raise FileNotFoundError(f"Failed to download PDB {pdb_id}.")
 
-    return pdb_file_path
+    return expected_filename
+
 
 downloaded_pdb_path = download_pdb(PDB_ID, folder_name)
 
@@ -117,8 +136,17 @@ def fix_pdb(input_pdb, output_pdb, ph=7.0, chain_id='A'):
     fixer.findMissingResidues()
 
     # Pobierz listę reszt z wybranego łańcucha
-    chain_residues = list(fixer.topology.chains(chain_id).residues)
-    print(f"Reszty w łańcuchu {chain_id}: {[res for res in fixer.topology.chains(chain_id).residues]}")
+    selected_chain = None
+    for chain in fixer.topology.chains():
+        if chain.id == chain_id:
+            selected_chain = chain
+            break
+
+    if selected_chain is None:
+        raise ValueError(f"Nie znaleziono łańcucha o ID '{chain_id}' w strukturze.")
+
+    chain_residues = list(selected_chain.residues())
+    print(f"Reszty w łańcuchu {chain_id}: {[res for res in chain_residues]}")
 
     # Usuń brakujące reszty na końcach łańcucha
     fixer.missingResidues = {
@@ -137,6 +165,7 @@ def fix_pdb(input_pdb, output_pdb, ph=7.0, chain_id='A'):
         PDBFile.writeFile(fixer.topology, fixer.positions, outfile)
 
     print(f"Naprawiony PDB zapisany jako {output_pdb}")
+
 
 
 
@@ -160,18 +189,39 @@ def prepare_ligand(input_pdb, output_pdbqt):
 
 prepare_ligand(ligand_pdb, ligand_pdbqt)
 
-subprocess.run([P2RANK_PATH, 'predict', '-f', receptor_pdb])
+# Specify the output directory for P2Rank
+output_dir = os.path.join(folder_name, 'p2rank_output')
+
+# Run P2Rank with the specified output directory
+try:
+    subprocess.run([P2RANK_PATH, 'predict', '-f', receptor_pdb, '-o', output_dir], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Błąd podczas wykonywania P2Rank: {e}")
+    sys.exit(1)
 
 receptor_base_name = os.path.basename(receptor_pdb).split('.')[0]
-df = pd.read_csv(f'p2rank_2.4.2/test_output/predict_{receptor_base_name}/{receptor_base_name}.pdb_predictions.csv')
-center_x = float(df['   center_x'].iloc[0])
-center_y = float(df['   center_y'].iloc[0])
-center_z = float(df['   center_z'].iloc[0])
 
-pred = pd.read_csv(f'p2rank_2.4.2/test_output/predict_{receptor_base_name}/{receptor_base_name}.pdb_residues.csv')
-pocket1 = pred[pred[' pocket'] == 1]
-resi = '+'.join([str(i) for i in pocket1[' residue_label']])
+# Paths to the predictions and residues CSV files
+predictions_csv = os.path.join(output_dir, f'{receptor_base_name}.pdb_predictions.csv')
+residues_csv = os.path.join(output_dir, f'{receptor_base_name}.pdb_residues.csv')
 
+# Read the CSV files
+if not os.path.exists(predictions_csv):
+    raise FileNotFoundError(f"Plik {predictions_csv} nie został znaleziony.")
+if not os.path.exists(residues_csv):
+    raise FileNotFoundError(f"Plik {residues_csv} nie został znaleziony.")
+
+df = pd.read_csv(predictions_csv)
+center_x = float(df['center_x'].iloc[0])
+center_y = float(df['center_y'].iloc[0])
+center_z = float(df['center_z'].iloc[0])
+
+pred = pd.read_csv(residues_csv)
+pocket1 = pred[pred['pocket'] == 1]
+resi_numbers = [str(res).strip() for res in pocket1['residue_label']]
+resi = '+'.join(resi_numbers)
+
+# Continue with your PyMOL commands
 cmd.load(receptor_pdb)
 cmd.select('pocket1', f'resi {resi}')
 cmd.show('cartoon')
@@ -203,7 +253,11 @@ vina_command = [
     '--size_y', str(Size_y),
     '--size_z', str(Size_z)
 ]
-subprocess.run(vina_command, check=True)
+try:
+    subprocess.run(vina_command, check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Błąd podczas wykonywania Vina: {e}")
+    sys.exit(1)
 
 cmd.reinitialize()
 
