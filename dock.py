@@ -19,11 +19,11 @@ python dock.py --pdb_id PDB_ID --ligands ligand_file.sdf
 
 Arguments:
 
-- `--pdb_id`: The PDB ID of the receptor protein to download and use for docking.
-- `--ligands`: The name of the SDF file containing ligands to dock, located in the `./ligands` directory.
+- --pdb_id: The PDB ID of the receptor protein to download and use for docking.
+- --ligands: The name of the SDF file containing ligands to dock, located in the ./ligands directory.
 
-All receptor-related files will be saved in the `./PDB_ID` directory. Each ligand's docking results will
-be saved in `./PDB_ID/ligand_name_or_number`.
+All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
+be saved in ./PDB_ID/ligand_name_or_number.
 
 Ensure that all required tools and libraries are installed and properly configured in your environment.
 """
@@ -77,11 +77,14 @@ def main():
     parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands.")
     parser.add_argument('--pdb_id', required=True, help='PDB ID of the receptor protein.')
     parser.add_argument('--ligands', required=True, help='Name of the SDF file containing ligands, located in ./ligands.')
+    parser.add_argument('--tol', type=int, default=3, help='Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK.')
+
     args = parser.parse_args()
 
     PDB_ID = args.pdb_id
     receptor_name = PDB_ID
     ligands_file = args.ligands
+    tol = args.tol
 
     # Set up paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -92,6 +95,9 @@ def main():
     # Set up logging
     log_file = os.path.join(receptor_folder, f"{receptor_name}_console_output.log")
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s %(message)s')
+
+    logging.info(f"Tolerance (Å): {tol}")
+    print(f"Docking tolerance set to {tol} Å.")
 
     # Folder for ligands
     ligands_folder = os.path.join(script_dir, 'ligands')
@@ -117,7 +123,7 @@ def main():
         run_p2rank(fixed_pdb, output_dir)
 
         # Get docking box parameters
-        center_x, center_y, center_z, Size_x, Size_y, Size_z = get_docking_box(output_dir, fixed_pdb)
+        center_x, center_y, center_z, Size_x, Size_y, Size_z = get_docking_box(output_dir, fixed_pdb, tol)
 
         # Read ligands from SDF file
         ligands_path = os.path.join(ligands_folder, ligands_file)
@@ -153,14 +159,17 @@ def main():
 
                 # Run docking
                 vina_output = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
-                                       center_x, center_y, center_z,
-                                       Size_x, Size_y, Size_z,
-                                       exhaustiveness=16)
+                                    center_x, center_y, center_z,
+                                    Size_x, Size_y, Size_z,
+                                    exhaustiveness=16)
 
                 # Save vina output to results file
                 rf.write(f"Ligand: {ligand_name}\n")
                 rf.write(vina_output)
-                rf.write("\n")
+                rf.write("\n\n")
+
+                # Display information in the terminal after docking is complete
+                print(f'Ligand {ligand_name} docked successfully!')
 
                 # Generate visualization
                 generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
@@ -235,6 +244,7 @@ def prepare_ligand(input_pdb, output_pdbqt):
     try:
         subprocess.run([OBABEL_PATH, "-i", "pdb", input_pdb, "-o", "pdbqt", "-O", output_pdbqt, "-h"], check=True)
         logging.info(f"Ligand prepared: {output_pdbqt}")
+        print(f"Ligand {os.path.basename(input_pdb)} prepared successfully!")
     except subprocess.CalledProcessError as e:
         logging.error(f"Error in preparing ligand: {e}")
         print(f"Error in preparing ligand: {e}")
@@ -251,7 +261,7 @@ def run_p2rank(receptor_pdb, output_dir):
         raise
 
 @logger_decorator
-def get_docking_box(output_dir, receptor_pdb):
+def get_docking_box(output_dir, receptor_pdb, tol):
     try:
         receptor_base_name = os.path.basename(receptor_pdb).split('.')[0]
         predictions_csv = os.path.join(output_dir, f'{receptor_base_name}.pdb_predictions.csv')
@@ -260,26 +270,17 @@ def get_docking_box(output_dir, receptor_pdb):
         df = pd.read_csv(predictions_csv)
         pred = pd.read_csv(residues_csv)
 
-        # Usuń białe znaki z nazw kolumn
+        # Remove whitespace characters from column names
         df.columns = df.columns.str.strip()
         pred.columns = pred.columns.str.strip()
 
-        # Wyświetl nazwy kolumn dla debugowania
-        print("Kolumny w df:", df.columns.tolist())
-        print("Kolumny w pred:", pred.columns.tolist())
-        logging.info(f"Columns in df: {df.columns.tolist()}")
-        logging.info(f"Columns in pred: {df.columns.tolist()}")
-
-        # Uzyskanie wartości center_x, center_y, center_z
+        # Obtaining center_x, center_y, center_z values
         center_x = float(df['center_x'].iloc[0])
         center_y = float(df['center_y'].iloc[0])
         center_z = float(df['center_z'].iloc[0])
 
-        # Selekcja reszt dla kieszeni 1
+        # Selection of residuals for pocket 1
         pocket1 = pred[pred['pocket'] == 1]
-        print("Przykładowe wartości residue_label:")
-        print(pocket1['residue_label'].head())
-        print("Typ danych residue_label:", pocket1['residue_label'].dtype)
 
         resi_numbers = [str(res).strip() for res in pocket1['residue_label']]
         resi = '+'.join(resi_numbers)
@@ -296,9 +297,12 @@ def get_docking_box(output_dir, receptor_pdb):
         alpha_carbons = np.array(alpha_carbons)
         min_coords = np.min(alpha_carbons, axis=0)
         max_coords = np.max(alpha_carbons, axis=0)
-        cube_size = max_coords - min_coords + 5
-        Size_x, Size_y, Size_z = cube_size
+        cube_size = max_coords - min_coords
+        Size_x, Size_y, Size_z = cube_size + np.array([tol, tol, tol])
 
+        logging.info(f"Docking box dimensions before tolerance: {cube_size}")
+        logging.info(f"Docking box dimensions after tolerance: {Size_x}, {Size_y}, {Size_z}")
+        logging.info(f"Tolerance applied: {tol}")
         logging.info(f"Docking box parameters obtained.")
         cmd.delete('all')
         return center_x, center_y, center_z, Size_x, Size_y, Size_z
@@ -326,10 +330,39 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
             '--size_y', str(size_y),
             '--size_z', str(size_z),
             '--exhaustiveness', str(exhaustiveness),
+            '--seed', '1988',  # Optionally, to have reproducible results
+            
         ]
-        result = subprocess.run(vina_command, capture_output=True, text=True, check=True)
+
+        # Call Vina without capturing the output
+        subprocess.run(vina_command, check=True)
         logging.info(f"Docking completed for ligand: {ligand_pdbqt}")
-        return result.stdout
+
+        # Read the docking results from the output_pdbqt file
+        affinities = []
+        with open(output_pdbqt, 'r') as f:
+            for line in f:
+                if line.startswith('REMARK VINA RESULT:'):
+                    parts = line.strip().split()
+                    if len(parts) >= 6:
+                        # parts[3]: affinity
+                        # parts[4]: RMSD l.b.
+                        # parts[5]: RMSD u.b.
+                        affinity = float(parts[3])
+                        rmsd_lb = float(parts[4])
+                        rmsd_ub = float(parts[5])
+                        affinities.append((affinity, rmsd_lb, rmsd_ub))
+        if affinities:
+            # Create a table similar to Vina's output
+            table_output = 'mode |   affinity | rmsd l.b.| rmsd u.b.\n'
+            table_output += '-----+------------+----------+----------\n'
+            for idx, (affinity, rmsd_lb, rmsd_ub) in enumerate(affinities, start=1):
+                table_output += f'{idx:>4}    {affinity:>10.4f}   {rmsd_lb:>8.3f}   {rmsd_ub:>8.3f}\n'
+        else:
+            table_output = "No docking results found."
+
+        return table_output
+
     except subprocess.CalledProcessError as e:
         logging.error(f"Error in docking with Vina: {e}")
         print(f"Error in docking with Vina: {e}")

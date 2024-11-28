@@ -6,7 +6,11 @@ import pubchempy as pcp
 compounds = {
     "retinol": 445354,
     "capsaicin": 1548943,
-    "cholesterol": 5997
+    "cholesterol": 5997,
+    "aspirin": 2244,
+    "ticagrelor": 9871419,
+    "valsartan": 60846,
+    "rivaroxaban": 9875401,
 }
 
 # Nazwa pliku wyjściowego
