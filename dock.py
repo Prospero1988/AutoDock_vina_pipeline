@@ -21,6 +21,9 @@ Arguments:
 
 - --pdb_id: The PDB ID of the receptor protein to download and use for docking.
 - --ligands: The name of the SDF file containing ligands to dock, located in the ./ligands directory.
+- --tol: Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK. (default: 0)
+- --pckt: Pocket number to use from P2Rank predictions. (default: 1)
+
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
 be saved in ./PDB_ID/ligand_name_or_number.
@@ -77,10 +80,11 @@ def main():
     parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands.")
     parser.add_argument('--pdb_id', required=True, help='PDB ID of the receptor protein.')
     parser.add_argument('--ligands', required=True, help='Name of the SDF file containing ligands, located in ./ligands.')
-    parser.add_argument('--tol', type=int, default=3, help='Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK.')
+    parser.add_argument('--tol', type=int, default=0, help='Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK.')
+    parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1)')
 
     args = parser.parse_args()
-
+    pocket_number = args.pckt
     PDB_ID = args.pdb_id
     receptor_name = PDB_ID
     ligands_file = args.ligands
@@ -113,7 +117,7 @@ def main():
         shutil.move(downloaded_pdb_path, dirty_pdb)
 
         fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-        fix_pdb(dirty_pdb, fixed_pdb, ph=7.4, chain_id='A')
+        fix_pdb(dirty_pdb, fixed_pdb, ph=7.4)
 
         receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
         prepare_receptor(fixed_pdb, receptor_pdbqt)
@@ -123,7 +127,7 @@ def main():
         run_p2rank(fixed_pdb, output_dir)
 
         # Get docking box parameters
-        center_x, center_y, center_z, Size_x, Size_y, Size_z = get_docking_box(output_dir, fixed_pdb, tol)
+        center_x, center_y, center_z, Size_x, Size_y, Size_z = get_docking_box(output_dir, fixed_pdb, tol, pocket_number)
 
         # Read ligands from SDF file
         ligands_path = os.path.join(ligands_folder, ligands_file)
@@ -207,19 +211,45 @@ def download_pdb(pdb_id, download_dir):
     return expected_filename
 
 @logger_decorator
-def fix_pdb(input_pdb, output_pdb, ph=7.0, chain_id='A'):
+def fix_pdb(input_pdb, output_pdb, ph=7.0):
     try:
         fixer = PDBFixer(filename=input_pdb)
-        # Remove all chains except the specified chain
-        fixer.removeChains([chain.id for chain in fixer.topology.chains() if chain.id != chain_id])
-        fixer.findMissingResidues()
+
+        # Get all chains and their residue counts using chain indices
+        chain_residue_counts = {}
+        chain_list = list(fixer.topology.chains())
+        for index, chain in enumerate(chain_list):
+            residue_count = sum(1 for residue in chain.residues())
+            chain_residue_counts[index] = residue_count
+            chain_id = chain.id
+            print(f"Found chain index: {index}, id: '{chain_id}', residues: {residue_count}")
+
+        if not chain_residue_counts:
+            raise ValueError("No chains found in the PDB structure.")
+
+        # Decide which chain to keep (chain with the highest number of residues)
+        chain_to_keep_index = max(chain_residue_counts, key=chain_residue_counts.get)
+        chain_to_keep_id = chain_list[chain_to_keep_index].id
+        logging.info(f"Keeping chain index {chain_to_keep_index} (id '{chain_to_keep_id}') with {chain_residue_counts[chain_to_keep_index]} residues.")
+        print(f"Keeping chain index {chain_to_keep_index} (id '{chain_to_keep_id}') with {chain_residue_counts[chain_to_keep_index]} residues.")
+
+        # Remove all other chains by their indices
+        chains_to_remove = [i for i in range(len(chain_list)) if i != chain_to_keep_index]
+        fixer.removeChains(chains_to_remove)
+
         # Remove heterogens (including water)
         fixer.removeHeterogens(keepWater=False)
+
+        # Find missing residues
+        fixer.findMissingResidues()
+
         # Find missing atoms and add them
         fixer.findMissingAtoms()
         fixer.addMissingAtoms()
+
         # Add missing hydrogens
         fixer.addMissingHydrogens(ph)
+
         # Save the fixed PDB file
         with open(output_pdb, 'w') as outfile:
             PDBFile.writeFile(fixer.topology, fixer.positions, outfile)
@@ -261,7 +291,7 @@ def run_p2rank(receptor_pdb, output_dir):
         raise
 
 @logger_decorator
-def get_docking_box(output_dir, receptor_pdb, tol):
+def get_docking_box(output_dir, receptor_pdb, tol, pocket_number):
     try:
         receptor_base_name = os.path.basename(receptor_pdb).split('.')[0]
         predictions_csv = os.path.join(output_dir, f'{receptor_base_name}.pdb_predictions.csv')
@@ -279,18 +309,24 @@ def get_docking_box(output_dir, receptor_pdb, tol):
         center_y = float(df['center_y'].iloc[0])
         center_z = float(df['center_z'].iloc[0])
 
-        # Selection of residuals for pocket 1
-        pocket1 = pred[pred['pocket'] == 1]
+        # Selection of residuals for choosen pocket 
+        pocket = pred[pred['pocket'] == pocket_number]
 
-        resi_numbers = [str(res).strip() for res in pocket1['residue_label']]
+        if pocket.empty:
+            raise ValueError(f"P2Rank did not predict pocket number {pocket_number}")
+
+        logging.info(f"Using pocket number {pocket_number} from P2Rank predictions.")
+        print(f"Using pocket number {pocket_number} from P2Rank predictions.")
+
+        resi_numbers = [str(res).strip() for res in pocket['residue_label']]
         resi = '+'.join(resi_numbers)
 
         cmd.load(receptor_pdb)
-        cmd.select('pocket1', f'resi {resi}')
+        cmd.select('pocket', f'resi {resi}')
         cmd.show('cartoon')
 
         alpha_carbons = []
-        model = cmd.get_model('pocket1 and name CA')
+        model = cmd.get_model('pocket and name CA')
         for atom in model.atom:
             alpha_carbons.append([atom.coord[0], atom.coord[1], atom.coord[2]])
 
