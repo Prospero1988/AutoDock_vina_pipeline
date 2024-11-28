@@ -23,7 +23,10 @@ Arguments:
 - --ligands: The name of the SDF file containing ligands to dock, located in the ./ligands directory.
 - --tol: Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK. (default: 0)
 - --pckt: Pocket number to use from P2Rank predictions. (default: 1)
-
+- --exhaust: Specifies how thorough the search should be for the best binding poses. 
+                Higher values increase precision but require more computation time. (default: 20)
+- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered. (default: 2)
+- --keep_water: If specified, retains water in the receptor structure. By default, water is removed.
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
 be saved in ./PDB_ID/ligand_name_or_number.
@@ -80,8 +83,12 @@ def main():
     parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands.")
     parser.add_argument('--pdb_id', required=True, help='PDB ID of the receptor protein.')
     parser.add_argument('--ligands', required=True, help='Name of the SDF file containing ligands, located in ./ligands.')
-    parser.add_argument('--tol', type=int, default=0, help='Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK.')
-    parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1)')
+    parser.add_argument('--tol', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).')
+    parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
+    parser.add_argument('--exhaust', type=int, default=20, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 20).')
+    parser.add_argument('--energy_range', type=int, default=2, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 2).')
+    parser.add_argument('--keep_water', action='store_true', help='If specified, retains water molecules in the receptor structure. By default, water is removed.')
+    parser.add_argument('--keep_heterogens', action='store_true', help='If specified, retains heteroatoms (e.g., ions, cofactors) in the receptor PDB structure. By default, heteroatoms are removed.')
 
     args = parser.parse_args()
     pocket_number = args.pckt
@@ -89,6 +96,10 @@ def main():
     receptor_name = PDB_ID
     ligands_file = args.ligands
     tol = args.tol
+    exhaustiveness = args.exhaust
+    energy_range = args.energy_range
+    keepWater = args.keep_water
+    heterogens = args.keep_heterogens
 
     # Set up paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -117,13 +128,13 @@ def main():
         shutil.move(downloaded_pdb_path, dirty_pdb)
 
         fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-        fix_pdb(dirty_pdb, fixed_pdb, ph=7.4)
+        fix_pdb(dirty_pdb, fixed_pdb, heterogens, keepWater, ph=7.4)
 
         receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
         prepare_receptor(fixed_pdb, receptor_pdbqt)
 
         # Run P2Rank
-        output_dir = os.path.join(receptor_folder, 'p2rank_output')
+        output_dir = os.path.join(receptor_folder, '01_p2rank_output')
         run_p2rank(fixed_pdb, output_dir)
 
         # Get docking box parameters
@@ -165,7 +176,7 @@ def main():
                 vina_output = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
                                     center_x, center_y, center_z,
                                     Size_x, Size_y, Size_z,
-                                    exhaustiveness=16)
+                                    exhaustiveness, energy_range)
 
                 # Save vina output to results file
                 rf.write(f"Ligand: {ligand_name}\n")
@@ -211,7 +222,8 @@ def download_pdb(pdb_id, download_dir):
     return expected_filename
 
 @logger_decorator
-def fix_pdb(input_pdb, output_pdb, ph=7.0):
+def fix_pdb(input_pdb, output_pdb, heterogens, keepWater, ph=7.4):
+    
     try:
         fixer = PDBFixer(filename=input_pdb)
 
@@ -238,7 +250,20 @@ def fix_pdb(input_pdb, output_pdb, ph=7.0):
         fixer.removeChains(chains_to_remove)
 
         # Remove heterogens (including water)
-        fixer.removeHeterogens(keepWater=False)
+        if heterogens:
+            logging.info("Heterogens are retained in the receptor structure.")
+            print("Heterogens are retained in the receptor structure.")
+            # Do not call removeHeterogens() since we want to keep heterogens
+            if not keepWater:
+                # Remove only water molecules
+                fixer.removeHeterogens(keepWater=False)
+                logging.info("Water molecules removed from the receptor structure.")
+                print("Water molecules are removed from the receptor structure.")
+        else:
+            # Remove heterogens; control water retention with keepWater
+            fixer.removeHeterogens(keepWater=keepWater)
+            logging.info(f"Heterogens removed; water molecules {'retained' if keepWater else 'removed'}.")
+            print(f"Heterogens removed; water molecules {'retained' if keepWater else 'removed'} in the receptor structure.")
 
         # Find missing residues
         fixer.findMissingResidues()
@@ -352,13 +377,14 @@ def get_docking_box(output_dir, receptor_pdb, tol, pocket_number):
 def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
              center_x, center_y, center_z,
              size_x, size_y, size_z,
-             exhaustiveness=8):
+             exhaustiveness, energy_range):
     try:
         vina_command = [
             VINA_PATH,
             '--receptor', receptor_pdbqt,
             '--ligand', ligand_pdbqt,
             '--out', output_pdbqt,
+            '--energy_range', str(energy_range),
             '--center_x', str(center_x),
             '--center_y', str(center_y),
             '--center_z', str(center_z),
