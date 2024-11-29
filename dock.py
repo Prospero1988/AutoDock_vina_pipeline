@@ -206,7 +206,12 @@ def main():
                     affinity = None
 
                 # Collect ligand results
-                ligand_results.append({'name': ligand_name, 'image': image_filename, 'affinity': affinity})
+                ligand_results.append({
+                    'name': ligand_name,
+                    'image': image_filename,
+                    'affinity': affinity,
+                    'output_pdbqt': output_pdbqt
+                })
 
         # Generate HTML results file
         html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
