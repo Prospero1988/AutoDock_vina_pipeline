@@ -1,0 +1,106 @@
+<html>
+<head>
+<title>Wyniki dokowania</title>
+<style>
+body { background-color: white; font-family: Arial, sans-serif; }
+table { border-collapse: collapse; margin: auto; }
+th, td { border: 1px solid black; padding: 5px; text-align: center; vertical-align: middle; }
+th { background-color: #f2f2f2; }
+td:nth-child(3), th:nth-child(3) { width: 400px; } /* Kolumna z obrazkami */
+img { display: block; margin: auto; }
+.probability { background-color: #ffecd9; } /* Pastelowy pomarańczowy */
+td:nth-child(5), th:nth-child(5) { max-width: 150px; }
+.p2rank-table td:nth-child(5) {
+  max-width: 300px;
+  word-wrap: break-word;
+  text-align: left;
+  vertical-align: top;
+}
+</style>
+</head>
+<body>
+<h2 style="text-align: center;">Wyniki dokowania do receptora o kodzie PDB: 8WCC </br>przy pomocy struktur zapisanych w pliku: lig_test.sdf</br></h2>
+<table>
+<tr><th>Numer</th><th>Nazwa związku</th><th>Struktura</th><th>Energia dokowania<br/>(kcal/mol)</th><th>Wyniki dokowania</th></tr>
+<tr>
+<td>1</td>
+<td>retinol</td>
+<td><img src="retinol/retinol.svg" alt="retinol" width="400"/></td>
+<td>-5.13</td>
+<td><a href="retinol/8WCC_retinol.pdbqt">8WCC_retinol.pdbqt</a></td>
+</tr>
+<tr>
+<td>2</td>
+<td>capsaicin</td>
+<td><img src="capsaicin/capsaicin.svg" alt="capsaicin" width="400"/></td>
+<td>-7.08</td>
+<td><a href="capsaicin/8WCC_capsaicin.pdbqt">8WCC_capsaicin.pdbqt</a></td>
+</tr>
+<tr>
+<td>3</td>
+<td>cholesterol</td>
+<td><img src="cholesterol/cholesterol.svg" alt="cholesterol" width="400"/></td>
+<td>-4.14</td>
+<td><a href="cholesterol/8WCC_cholesterol.pdbqt">8WCC_cholesterol.pdbqt</a></td>
+</tr>
+<tr>
+<td>4</td>
+<td>aspirin</td>
+<td><img src="aspirin/aspirin.svg" alt="aspirin" width="400"/></td>
+<td>-6.28</td>
+<td><a href="aspirin/8WCC_aspirin.pdbqt">8WCC_aspirin.pdbqt</a></td>
+</tr>
+<tr>
+<td>5</td>
+<td>ticagrelol</td>
+<td><img src="ticagrelol/ticagrelol.svg" alt="ticagrelol" width="400"/></td>
+<td>-3.21</td>
+<td><a href="ticagrelol/8WCC_ticagrelol.pdbqt">8WCC_ticagrelol.pdbqt</a></td>
+</tr>
+<tr>
+<td>6</td>
+<td>valsartan</td>
+<td><img src="valsartan/valsartan.svg" alt="valsartan" width="400"/></td>
+<td>-5.27</td>
+<td><a href="valsartan/8WCC_valsartan.pdbqt">8WCC_valsartan.pdbqt</a></td>
+</tr>
+<tr>
+<td>7</td>
+<td>rivaroxaban</td>
+<td><img src="rivaroxaban/rivaroxaban.svg" alt="rivaroxaban" width="400"/></td>
+<td>-3.65</td>
+<td><a href="rivaroxaban/8WCC_rivaroxaban.pdbqt">8WCC_rivaroxaban.pdbqt</a></td>
+</tr>
+</table>
+</br><p style="text-align: center; margin-top: 20px;">
+<a href="8WCC_results.txt" target="_blank">Szczegółowe rezultaty dla każdego związku (Wszystkie pozy dokowania). KLIKNIJ</a>
+</p>
+</br></br><h3 style="text-align: center; margin-top: 20px;">P2RANK: wyznaczone kieszenie dokowania dla receptora o kodzie PDB: 8WCC</h3>
+<table class="p2rank-table">
+<tr><th>name</th><th>rank</th><th>score</th><th>probability</th><th>residue_ids</th></tr>
+<tr><td>pocket1</td><td>1</td><td>30.10</td><td class="probability">0.933</td><td>A_102 A_103 A_106 A_107 A_110 A_153 A_183 A_185 A_193 A_197 A_261 A_264 A_265 A_268 A_287 A_291 A_79 A_82 A_98 A_99</td></tr>
+<tr><td>pocket2</td><td>2</td><td>16.35</td><td class="probability">0.777</td><td>A_158 A_161 A_163 A_164 A_171 A_172 A_175 A_179 A_180 A_181 A_182 A_183 A_88 A_92 A_95 A_96 A_99</td></tr>
+<tr><td>pocket3</td><td>3</td><td>16.06</td><td class="probability">0.769</td><td>A_174 A_178 A_180 A_181 A_182 A_183 A_184 A_185 A_264 A_268 A_271 A_272 A_276 A_278 A_279 A_280 A_281 A_283 A_284 A_287 A_82 A_83 A_85 A_86</td></tr>
+<tr><td>pocket4</td><td>4</td><td>5.64</td><td class="probability">0.272</td><td>A_101 A_74 A_75 A_78 A_88 A_90 A_94 A_97 A_98</td></tr>
+<tr><td>pocket5</td><td>5</td><td>3.40</td><td class="probability">0.122</td><td>A_116 A_119 A_120 A_123 A_130 A_301 A_305 A_307 A_57 A_61</td></tr>
+<tr><td>pocket6</td><td>6</td><td>3.30</td><td class="probability">0.116</td><td>A_116 A_120 A_205 A_209 A_253 A_257 A_297 A_301</td></tr>
+<tr><td>pocket7</td><td>7</td><td>2.78</td><td class="probability">0.085</td><td>A_101 A_104 A_105 A_147 A_151 A_155 A_70 A_74</td></tr>
+<tr><td>pocket8</td><td>8</td><td>2.60</td><td class="probability">0.075</td><td>A_120 A_124 A_212 A_216 A_246 A_249 A_250 A_305</td></tr>
+<tr><td>pocket9</td><td>9</td><td>2.12</td><td class="probability">0.049</td><td>A_25 A_28 A_284 A_285 A_288 A_289 A_29 A_292 A_32 A_83</td></tr>
+<tr><td>pocket10</td><td>10</td><td>1.98</td><td class="probability">0.042</td><td>A_209 A_210 A_213 A_214 A_250</td></tr>
+<tr><td>pocket11</td><td>11</td><td>1.95</td><td class="probability">0.04</td><td>A_111 A_114 A_115 A_118 A_145 A_149 A_200 A_201 A_204</td></tr>
+<tr><td>pocket12</td><td>12</td><td>1.41</td><td class="probability">0.018</td><td>A_107 A_111 A_149 A_150 A_153 A_196 A_197</td></tr>
+<tr><td>pocket13</td><td>13</td><td>1.38</td><td class="probability">0.017</td><td>A_136 A_139 A_140 A_143 A_48 A_59 A_62</td></tr>
+<tr><td>pocket14</td><td>14</td><td>1.35</td><td class="probability">0.015</td><td>A_194 A_198 A_199 A_202 A_203 A_206 A_258 A_266</td></tr>
+<tr><td>pocket15</td><td>15</td><td>0.86</td><td class="probability">0.003</td><td>A_302 A_307 A_308 A_47 A_61</td></tr>
+</table>
+</br><p style="text-align: center; margin-top: 20px;">
+<a href="01_p2rank_output/8WCC_fixed.pdb_residues.csv" target="_blank">Szczegółowe informacje o poszczególnych aminokwasach i ich udziale w kieszeniach dokowania. KLIKNIJ</a>
+</p>
+</br></br><p style="font-size: small; text-align: center; margin-top: 20px;">
+System dokowania oparty o <b>AutoDock Vina v.1.2.5</b> oraz <b>P2RANK v.2.4.2</b><br/>
+<b>Autor:</b> Arkadiusz Leniak <b>mail:</b> arkadiusz.leniak@gmail.com<br/>
+<b>github:</b> <a href="https://github.com/Prospero1988">https://github.com/Prospero1988</a>
+</p>
+</body>
+</html>

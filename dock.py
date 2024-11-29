@@ -196,7 +196,7 @@ def main():
                 # Display information in the terminal after docking is complete
                 print(f'Ligand {ligand_name} docked successfully!')
 
-                # Generate visualization
+                # Generate visualization 
                 generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
 
                 # Get the first affinity value
@@ -571,9 +571,8 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('td:nth-child(3), th:nth-child(3) { width: 400px; } /* Kolumna z obrazkami */\n')
             hf.write('img { display: block; margin: auto; }\n')
             hf.write('.probability { background-color: #ffecd9; } /* Pastelowy pomarańczowy */\n')
-            # Dodano style dla drugiej tabelki, aby dostosować szerokość kolumny "score"
-            
-            hf.write('.p2rank-table td:nth-child(3), .p2rank-table th:nth-child(3) { max-width: 100px; white-space: nowrap; text-align: center; }\n')
+            # Dodano style dla nowej kolumny "Wyniki dokowania"
+            hf.write('td:nth-child(5), th:nth-child(5) { max-width: 200px; }\n')
             # Styl dla drugiej tabelki (dostosowanie kolumny residue_ids)
             hf.write('.p2rank-table td:nth-child(5) {\n')
             hf.write('  max-width: 300px;\n')
@@ -581,18 +580,17 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('  text-align: left;\n')  # Wyrównanie do lewej
             hf.write('  vertical-align: top;\n')  # Wyrównanie do góry
             hf.write('}\n')
-           
             hf.write('</style>\n')
             hf.write('</head>\n')
             hf.write('<body>\n')
-                        
+
             # Nagłówek dla tabelki z wynikami dokowania
-            header_text = f'Wyniki dokowania do receptora o kodzie PDB: {receptor_name} </br>przy pomocy struktur zapisanych w pliku: {ligands_file}</br>'
+            header_text = f'Wyniki dokowania do receptora o kodzie PDB: <span style="color: red;">{receptor_name}</span> </br>przy pomocy struktur zapisanych w pliku: <span style="color: navy;">{ligands_file}</span></br>'
             hf.write(f'<h2 style="text-align: center;">{header_text}</h2>\n')
 
             # Pierwsza tabela: Wyniki dokowania
             hf.write('<table>\n')
-            hf.write('<tr><th>Numer</th><th>Nazwa związku</th><th>Struktura</th><th>Energia dokowania<br/>(kcal/mol)</th></tr>\n')
+            hf.write('<tr><th>Numer</th><th>Nazwa związku</th><th>Struktura</th><th>Energia dokowania<br/>(kcal/mol)</th><th>Wyniki dokowania</th></tr>\n')
             for idx, result in enumerate(ligand_results, start=1):
                 name = result['name']
                 image_path = os.path.relpath(result['image'], os.path.dirname(html_file))
@@ -601,22 +599,26 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                     affinity_str = f"{affinity:.2f}"
                 else:
                     affinity_str = 'N/A'
+                # Ścieżka do pliku wynikowego
+                output_pdbqt_path = os.path.relpath(result['output_pdbqt'], os.path.dirname(html_file))
+                link_text = os.path.basename(result['output_pdbqt'])
                 hf.write('<tr>\n')
                 hf.write(f'<td>{idx}</td>\n')
                 hf.write(f'<td>{name}</td>\n')
                 hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n')
                 hf.write(f'<td>{affinity_str}</td>\n')
+                hf.write(f'<td><a href="{output_pdbqt_path}" download>{link_text}</a></td>\n')
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
-            
+
             # Link do szczegółowych rezultatów
             results_file = f"{receptor_name}_results.txt"
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(f'<a href="{results_file}" target="_blank">Szczegółowe rezultaty dla każdego związku (Wszystkie pozy dokowania). KLIKNIJ</a>\n')
             hf.write('</p>\n')
             hf.write('</br></br>')
-            
+
             # Nagłówek dla tabelki z danymi P2RANK
             p2rank_header = f'P2RANK: wyznaczone kieszenie dokowania dla receptora o kodzie PDB: {receptor_name}'
             hf.write(f'<h3 style="text-align: center; margin-top: 20px;">{p2rank_header}</h3>\n')
@@ -641,11 +643,11 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             # Link do szczegółowych rezultatów
             residues_csv_file = os.path.join('01_p2rank_output', f'{receptor_name}_fixed.pdb_residues.csv')
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
-            hf.write(f'<a href="{residues_csv_file}" target="_blank">Szczegółowe informacje o poszczególnych aminokwasach i ich udziale w kieszeniach dokowania. KLIKNIJ</a>\n')
+            hf.write(f'<a href="{residues_csv_file}" target="_blank">Szczegółowe informacje o poszczególnych aminokwasach </br>i ich udziale w kieszeniach dokowania. KLIKNIJ</a>\n')
             hf.write('</p>\n')
-            
+
             hf.write('</br></br>')
-            
+
             # Informacje o autorze na końcu
             hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
             hf.write('System dokowania oparty o <b>AutoDock Vina v.1.2.5</b> oraz <b>P2RANK v.2.4.2</b><br/>\n')
