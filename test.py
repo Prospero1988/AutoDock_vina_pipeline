@@ -16,3 +16,4 @@ OBABEL_PATH = "/usr/bin/obabel"
 test_tool(P2RANK_PATH, ['--help'])
 test_tool(VINA_PATH, ['--version'])
 test_tool(OBABEL_PATH, ['--version'])
+

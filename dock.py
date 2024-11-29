@@ -23,7 +23,7 @@ Arguments:
 - --ligands: The name of the SDF file containing ligands to dock, located in the ./ligands directory.
 - --tol: Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK. (default: 0)
 - --pckt: Pocket number to use from P2Rank predictions. (default: 1)
-- --exhaust: Specifies how thorough the search should be for the best binding poses. 
+- --exhaust: Specifies how thorough the search should be for the best binding poses.
                 Higher values increase precision but require more computation time. (default: 20)
 - --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered. (default: 2)
 - --keep_water: If specified, retains water in the receptor structure. By default, water is removed.
@@ -50,6 +50,7 @@ import pymol
 from pymol import cmd
 from rdkit import Chem
 from rdkit.Chem import AllChem
+from rdkit.Chem.Draw import MolToFile  # Dodano import
 
 from pdbfixer import PDBFixer
 from openmm.app import PDBFile
@@ -120,6 +121,9 @@ def main():
     # Output results file
     results_file = os.path.join(receptor_folder, f"{receptor_name}_results.txt")
 
+    # Initialize list to collect ligand results
+    ligand_results = []  # Dodano tę linię
+
     # Start processing
     try:
         # Download and prepare receptor
@@ -169,11 +173,16 @@ def main():
                 # Save ligand to PDB
                 write_mol_to_pdb(mol, ligand_pdb)
 
+                # Generate 2D coordinates and save image
+                AllChem.Compute2DCoords(mol)  # Dodano generowanie 2D współrzędnych
+                image_filename = os.path.join(ligand_folder, f"{ligand_name}.png")
+                MolToFile(mol, image_filename)  # Zapisanie obrazu 2D
+
                 # Prepare ligand
                 prepare_ligand(ligand_pdb, ligand_pdbqt)
 
                 # Run docking
-                vina_output = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
+                vina_output, affinities = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
                                     center_x, center_y, center_z,
                                     Size_x, Size_y, Size_z,
                                     exhaustiveness, energy_range)
@@ -188,6 +197,21 @@ def main():
 
                 # Generate visualization
                 generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
+
+                # Get the first affinity value
+                if affinities:
+                    affinity = affinities[0][0]  # Pierwsza wartość energii dokowania
+                else:
+                    affinity = None
+
+                # Collect ligand results
+                ligand_results.append({'name': ligand_name, 'image': image_filename, 'affinity': affinity})  # Dodano zbieranie danych
+
+        # Generate HTML results file
+        html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
+        generate_html_results(html_file, receptor_name, ligands_file, ligand_results)  # Dodano generowanie pliku HTML
+
+        print(f'Results HTML file generated: {html_file}')
 
     except Exception as e:
         logging.error(f"An error occurred: {e}")
@@ -223,7 +247,6 @@ def download_pdb(pdb_id, download_dir):
 
 @logger_decorator
 def fix_pdb(input_pdb, output_pdb, heterogens, keepWater, ph=7.4):
-    
     try:
         fixer = PDBFixer(filename=input_pdb)
 
@@ -372,7 +395,6 @@ def get_docking_box(output_dir, receptor_pdb, tol, pocket_number):
         print(f"Error in getting docking box parameters: {e}")
         raise
 
-
 @logger_decorator
 def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
              center_x, center_y, center_z,
@@ -393,7 +415,7 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
             '--size_z', str(size_z),
             '--exhaustiveness', str(exhaustiveness),
             '--seed', '1988',  # Optionally, to have reproducible results
-            
+
         ]
 
         # Call Vina without capturing the output
@@ -423,7 +445,7 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
         else:
             table_output = "No docking results found."
 
-        return table_output
+        return table_output, affinities  # Zmieniono, aby zwracać również listę affinities
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Error in docking with Vina: {e}")
@@ -473,6 +495,46 @@ def write_mol_to_pdb(mol, pdb_filename):
     except Exception as e:
         logging.error(f"Error in writing molecule to PDB: {e}")
         print(f"Error in writing molecule to PDB: {e}")
+        raise
+
+def generate_html_results(html_file, receptor_name, ligands_file, ligand_results):
+    try:
+        with open(html_file, 'w', encoding='utf-8') as hf:
+            hf.write('<html>\n')
+            hf.write('<head>\n')
+            hf.write('<title>Wyniki dokowania</title>\n')
+            hf.write('<style>\n')
+            hf.write('table { border-collapse: collapse; width: 100%; }\n')
+            hf.write('th, td { border: 1px solid black; padding: 8px; text-align: center; }\n')
+            hf.write('th { background-color: #f2f2f2; }\n')
+            hf.write('</style>\n')
+            hf.write('</head>\n')
+            hf.write('<body>\n')
+            # Header text
+            header_text = f'Wyniki dokowania do {receptor_name} przy pomocy struktur z {ligands_file}'
+            hf.write(f'<h2>{header_text}</h2>\n')
+            hf.write('<table>\n')
+            hf.write('<tr><th>Nazwa związku</th><th>Struktura</th><th>Energia dokowania (kcal/mol)</th></tr>\n')
+            for result in ligand_results:
+                name = result['name']
+                image_path = os.path.relpath(result['image'], os.path.dirname(html_file))
+                affinity = result['affinity']
+                if affinity is not None:
+                    affinity_str = f"{affinity:.2f}"
+                else:
+                    affinity_str = 'N/A'
+                hf.write('<tr>\n')
+                hf.write(f'<td>{name}</td>\n')
+                hf.write(f'<td><img src="{image_path}" alt="{name}" width="200"/></td>\n')
+                hf.write(f'<td>{affinity_str}</td>\n')
+                hf.write('</tr>\n')
+            hf.write('</table>\n')
+            hf.write('</body>\n')
+            hf.write('</html>\n')
+        logging.info(f"HTML results file generated: {html_file}")
+    except Exception as e:
+        logging.error(f"Error in generating HTML results: {e}")
+        print(f"Error in generating HTML results: {e}")
         raise
 
 if __name__ == "__main__":
