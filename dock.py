@@ -353,7 +353,7 @@ def get_docking_box(output_dir, receptor_pdb, tol, pocket_number):
         center_y = float(df['center_y'].iloc[0])
         center_z = float(df['center_z'].iloc[0])
 
-        # Selection of residuals for choosen pocket 
+        # Selection of residues for chosen pocket 
         pocket = pred[pred['pocket'] == pocket_number]
 
         if pocket.empty:
@@ -441,7 +441,7 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
         else:
             table_output = "No docking results found."
 
-        return table_output, affinities  # Zmieniono, aby zwracać również listę affinities
+        return table_output, affinities  # Modified to return list of affinities
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Error in docking with Vina: {e}")
@@ -496,44 +496,44 @@ def write_mol_to_pdb(mol, pdb_filename):
 def draw_molecule_to_file(mol, image_filename):
     try:
         """
-        # Oblicz bounding box molekuły
+        # Calculate the bounding box of the molecule
         width=400
         conf = mol.GetConformer()
         coords = [conf.GetAtomPosition(i) for i in range(mol.GetNumAtoms())]
         x_coords = [coord.x for coord in coords]
         y_coords = [coord.y for coord in coords]
 
-        # Rozpiętość w osiach X i Y
+        # Range along X and Y axes
         x_range = max(x_coords) - min(x_coords)
         y_range = max(y_coords) - min(y_coords)
 
-        # Obliczenie wysokości proporcjonalnie do szerokości
+        # Calculate height proportionally to width
         if x_range > 0:
             aspect_ratio = y_range / x_range
         else:
-            aspect_ratio = 1.0  # Domyślna proporcja, gdyby coś poszło nie tak
+            aspect_ratio = 1.0  # Default aspect ratio if something went wrong
         height = int(width * aspect_ratio)
         """
-        # Przygotowanie rysownika SVG
+        # Prepare SVG drawer
         drawer = rdMolDraw2D.MolDraw2DSVG(400, 150)
         options = drawer.drawOptions()
-        options.padding = 0.1  # Mały margines
-        options.fixedFontSize = 11  # Stały rozmiar czcionki
-        options.useFixedFontSize = True  # Wymuszenie stałego rozmiaru czcionki
-        options.minFontSize = 6  # Minimalny rozmiar czcionki
-        options.bondLineWidth = 2  # Grubsze linie wiązań
+        options.padding = 0.1  # Small margin
+        options.fixedFontSize = 11  # Fixed font size
+        options.useFixedFontSize = True  # Enforce fixed font size
+        options.minFontSize = 6  # Minimum font size
+        options.bondLineWidth = 2  # Thicker bond lines
         drawer.SetDrawOptions(options)
 
-        # Rysowanie molekuły
+        # Draw molecule
         drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
         svg = drawer.GetDrawingText()
 
-        # Usunięcie deklaracji XML i poprawa przestrzeni nazw
+        # Remove XML declaration and fix namespace
         svg = svg.replace('<?xml version=\'1.0\' encoding=\'utf-8\'?>\n', '')
         svg = svg.replace('xmlns:svg=', 'xmlns=')
 
-        # Zapisanie pliku SVG
+        # Save SVG file
         with open(image_filename, 'w') as f:
             f.write(svg)
         logging.info(f"Ligand image saved: {image_filename}")
@@ -544,7 +544,7 @@ def draw_molecule_to_file(mol, image_filename):
 
 def generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, pckt, receptor_pdbqt):
     try:
-        # Wczytaj dane z P2RANK i wyczyść białe znaki
+        # Load data from P2RANK and clean whitespace
         p2rank_csv = predictions_csv
         df_p2rank = pd.read_csv(p2rank_csv)
         df_p2rank.columns = df_p2rank.columns.str.strip()
@@ -555,51 +555,52 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         with open(html_file, 'w', encoding='utf-8') as hf:
             hf.write('<html>\n')
             hf.write('<head>\n')
-            hf.write('<title>Wyniki dokowania</title>\n')
+            hf.write('<title>Docking Results</title>\n')
             hf.write('<style>\n')
             hf.write('body { background-color: white; font-family: Arial, sans-serif; }\n')
             hf.write('table { border-collapse: collapse; margin: auto; }\n')
             hf.write('th, td { border: 1px solid black; padding: 5px; text-align: center; vertical-align: middle; }\n')
             hf.write('th { background-color: #f2f2f2; }\n')
             hf.write('img { display: block; margin: auto; }\n')
-            hf.write('.probability { background-color: #ffecd9; } /* Pastelowy pomarańczowy */\n')
-            # Styl dla kolumny "Wyniki dokowania" w pierwszej tabeli
+            hf.write('.probability { background-color: #ffecd9; } /* Pastel orange */\n')
+            hf.write('.docking-energy { background-color: #dfffe0; } /* Pastel green */\n')  # Add pastel green styling
+            # Style for the "Docking Results" column in the first table
             hf.write('td:nth-child(5), th:nth-child(5) {\n')
-            hf.write('  max-width: 200px;\n')  # Maksymalna szerokość
-            hf.write('  word-wrap: break-word;\n')  # Zawijanie tekstu
-            hf.write('  white-space: normal;\n')  # Normalne zawijanie
-            hf.write('  text-align: left;\n')  # Wyrównanie do lewej
+            hf.write('  max-width: 200px;\n')  # Maximum width
+            hf.write('  word-wrap: break-word;\n')  # Word wrapping
+            hf.write('  white-space: normal;\n')  # Normal white space
+            hf.write('  text-align: left;\n')  # Align left
             hf.write('}\n')
-            # Styl dla kolumny "score" w drugiej tabeli z dodatkowymi marginesami
+            # Style for the "score" column in the second table with additional margins
             hf.write('.p2rank-table td:nth-child(3), .p2rank-table th:nth-child(3) {\n')
-            hf.write('  white-space: nowrap;\n')  # Dopasowanie szerokości do zawartości
-            hf.write('  padding-left: 15px;\n')  # Margines wewnętrzny z lewej
-            hf.write('  padding-right: 15px;\n')  # Margines wewnętrzny z prawej
+            hf.write('  white-space: nowrap;\n')  # Adjust width to content
+            hf.write('  padding-left: 15px;\n')  # Left padding
+            hf.write('  padding-right: 15px;\n')  # Right padding
             hf.write('}\n')
-            # Styl dla kolumny "residue_ids" w drugiej tabeli
+            # Style for the "residue_ids" column in the second table
             hf.write('.p2rank-table td:nth-child(5), .p2rank-table th:nth-child(5) {\n')
-            hf.write('  padding: 15px;\n')  # Margines wewnętrzny dla ostatniej kolumny
-            hf.write('  text-align: left;\n')  # Opcjonalnie: wyrównanie tekstu do lewej
+            hf.write('  padding: 15px;\n')  # Inner margin for the last column
+            hf.write('  text-align: left;\n')  # Optionally: align text to the left
             hf.write('}\n')
             hf.write('</style>\n')
 
             hf.write('</head>\n')
             hf.write('<body>\n')
 
-            # Nagłówek dla tabelki z wynikami dokowania
+            # Header for the docking results table
             receptor_pdbqt = os.path.basename(receptor_pdbqt)
-            header_text = f'Wyniki dokowania do receptora o kodzie PDB: <span style="color: red;">{receptor_name}</span></br>przy pomocy struktur zapisanych w pliku: <span style="color: navy;">{ligands_file}</span></br>'
+            header_text = f'Docking results for receptor with PDB code: <span style="color: red;">{receptor_name}</span></br>using structures from file: <span style="color: navy;">{ligands_file}</span></br>'
             hf.write(f'<h2 style="text-align: center;">{header_text}</h2>\n')
             hf.write(f'</br><h2 style="text-align: center; color: green; max-width: 600px; word-wrap: break-word; margin: auto;">{protein_name}</h2></br>')
-            hf.write(f'<h3 style="text-align: center;">Dokowanie do kieszeni (pocket) o numerze: <span style="color: red;">{pckt}</span></br></h2>\n')
+            hf.write(f'<h3 style="text-align: center;">Docking to pocket number: <span style="color: red;">{pckt}</span></br></h2>\n')
             hf.write(f'<div style="text-align: center;">')
-            hf.write(f'<a href="{receptor_pdbqt}" download="receptor_structure.pdbqt" type="application/octet-stream">Struktura receptora (plik .PDBQT). DOWNLOAD</a>')
+            hf.write(f'<a href="{receptor_pdbqt}" download="receptor_structure.pdbqt" type="application/octet-stream">Receptor structure (file .PDBQT). DOWNLOAD</a>')
             hf.write('</div>')
             hf.write('</br>')
             
-            # Pierwsza tabela: Wyniki dokowania
+            # First table: Docking results
             hf.write('<table>\n')
-            hf.write('<tr><th>Numer</th><th>Nazwa związku</th><th>Struktura</th><th>Energia dokowania<br/>(kcal/mol)</th><th>Wyniki dokowania</th></tr>\n')
+            hf.write('<tr><th>Number</th><th>Compound Name</th><th>Structure</th><th class="docking-energy">Docking Energy<br/>(kcal/mol)</th><th>Docking Results</th></tr>\n')
             for idx, result in enumerate(ligand_results, start=1):
                 name = result['name']
                 image_path = os.path.relpath(result['image'], os.path.dirname(html_file))
@@ -608,32 +609,32 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                     affinity_str = f"{affinity:.2f}"
                 else:
                     affinity_str = 'N/A'
-                # Ścieżka do pliku wynikowego
+                # Path to the output file
                 output_pdbqt_path = os.path.relpath(result['output_pdbqt'], os.path.dirname(html_file))
                 link_text = os.path.basename(result['output_pdbqt'])
                 hf.write('<tr>\n')
                 hf.write(f'<td>{idx}</td>\n')
                 hf.write(f'<td>{name}</td>\n')
                 hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n')
-                hf.write(f'<td>{affinity_str}</td>\n')
+                hf.write(f'<td class="docking-energy">{affinity_str}</td>\n')  # Add class here
                 hf.write(f'<td><a href="{output_pdbqt_path}" download="{link_text}" type="application/octet-stream">{link_text}</a></td>\n')
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
 
-            # Link do szczegółowych rezultatów
+            # Link to detailed results
             results_file = f"{receptor_name}_results.txt"
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
-            hf.write(f'<a href="{results_file}" target="_blank">Szczegółowe rezultaty dla każdego związku (Wszystkie pozy dokowania). KLIKNIJ</a>\n')
+            hf.write(f'<a href="{results_file}" target="_blank">Detailed results for each compound (All docking poses). CLICK</a>\n')
             hf.write('</p>\n')
             hf.write('</br></br>')
 
-            # Nagłówek dla tabelki z danymi P2RANK
-            p2rank_header = f'P2RANK: wyznaczone kieszenie dokowania dla receptora o kodzie PDB: {receptor_name}'
+            # Header for the table with P2RANK data
+            p2rank_header = f'P2RANK: identified docking pockets for receptor with PDB code: {receptor_name}'
             hf.write(f'<h3 style="text-align: center; margin-top: 20px;">{p2rank_header}</h3>\n')
 
-            # Druga tabela: Dane P2RANK
-            hf.write('<table class="p2rank-table">\n')  # Dodano klasę "p2rank-table"
+            # Second table: P2RANK data
+            hf.write('<table class="p2rank-table">\n')  # Added class "p2rank-table"
             hf.write('<tr>')
             for col in ['name', 'rank', 'score', 'probability', 'residue_ids']:
                 hf.write(f'<th>{col}</th>')
@@ -649,18 +650,18 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
-            # Link do szczegółowych rezultatów
+            # Link to detailed results
             residues_csv_file = os.path.join('01_p2rank_output', f'{receptor_name}_fixed.pdb_residues.csv')
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
-            hf.write(f'<a href="{residues_csv_file}" target="_blank">Szczegółowe informacje o poszczególnych aminokwasach </br>i ich udziale w kieszeniach dokowania. KLIKNIJ</a>\n')
+            hf.write(f'<a href="{residues_csv_file}" target="_blank">Detailed information about individual amino acids </br>and their involvement in docking pockets. CLICK</a>\n')
             hf.write('</p>\n')
 
             hf.write('</br></br>')
 
-            # Informacje o autorze na końcu
+            # Author information at the end
             hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
-            hf.write('System dokowania oparty o <b>AutoDock Vina v.1.2.5</b> oraz <b>P2RANK v.2.4.2</b><br/>\n')
-            hf.write('<b>Autor:</b> Arkadiusz Leniak <b>mail:</b> arkadiusz.leniak@gmail.com<br/>\n')
+            hf.write('Docking system based on <b>AutoDock Vina v.1.2.5</b> and <b>P2RANK v.2.4.2</b><br/>\n')
+            hf.write('<b>Author:</b> Arkadiusz Leniak <b>email:</b> arkadiusz.leniak@gmail.com<br/>\n')
             hf.write('<b>github:</b> <a href="https://github.com/Prospero1988">https://github.com/Prospero1988</a>\n')
             hf.write('</p>\n')
 
@@ -671,6 +672,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         logging.error(f"Error in generating HTML results: {e}")
         print(f"Error in generating HTML results: {e}")
         raise
+
 
 if __name__ == "__main__":
     main()
