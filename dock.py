@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """
-This script automates the process of docking multiple ligands to a receptor protein using AutoDock Vina.
-It downloads the receptor structure from the PDB database, prepares it for docking, and processes multiple
-ligands from an SDF file. The script utilizes various bioinformatics tools and libraries such as Biopython,
-RDKit, Open Babel, PyMOL, and P2Rank.
+This script automates the process of docking multiple ligands to multiple receptor proteins using AutoDock Vina.
+It reads receptor PDB IDs from a CSV file, downloads each receptor structure from the PDB database, prepares them for docking, and processes multiple ligands from an SDF file.
 
 Technologies used:
 - Biopython for handling PDB files and interacting with the PDB database.
@@ -15,17 +13,17 @@ Technologies used:
 
 How to run:
 
-python dock.py --pdb_id PDB_ID --ligands ligand_file.sdf
+python dock.py --pdb_ids receptors.csv --ligands ligand_file.sdf
 
 Arguments:
 
-- --pdb_id: The PDB ID of the receptor protein to download and use for docking.
+- --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins, located in the ./receptors directory.
 - --ligands: The name of the SDF file containing ligands to dock, located in the ./ligands directory.
-- --tol: Toleration in Ångströms to expand the docking pocket dimensions beyond those defined by P2RANK. (default: 0)
-- --pckt: Pocket number to use from P2Rank predictions. (default: 1)
+- --tol: Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).
+- --pckt: Pocket number to use from P2Rank predictions (default: 1).
 - --exhaust: Specifies how thorough the search should be for the best binding poses.
-                Higher values increase precision but require more computation time. (default: 20)
-- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered. (default: 2)
+              Higher values increase precision but require more computation time (default: 20).
+- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 2).
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
 be saved in ./PDB_ID/ligand_name_or_number.
@@ -81,8 +79,8 @@ def logger_decorator(func):
 # Main function
 def main():
     # Argument parsing
-    parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands.")
-    parser.add_argument('--pdb_id', required=True, help='PDB ID of the receptor protein.')
+    parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands and receptors.")
+    parser.add_argument('--pdb_ids', required=True, help='Name of the CSV file containing PDB IDs of receptor proteins, located in ./receptors.')
     parser.add_argument('--ligands', required=True, help='Name of the SDF file containing ligands, located in ./ligands.')
     parser.add_argument('--tol', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).')
     parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
@@ -90,134 +88,165 @@ def main():
     parser.add_argument('--energy_range', type=int, default=2, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 2).')
 
     args = parser.parse_args()
-    pocket_number = args.pckt
-    PDB_ID = args.pdb_id
-    receptor_name = PDB_ID
-    ligands_file = args.ligands
-    tol = args.tol
-    exhaustiveness = args.exhaust
-    energy_range = args.energy_range
 
-    # Set up paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    receptor_folder = os.path.join(script_dir, receptor_name)
-    if not os.path.exists(receptor_folder):
-        os.makedirs(receptor_folder, exist_ok=True)
+    pdb_ids_file = args.pdb_ids
+    receptors_file_path = os.path.join(script_dir, 'receptors', pdb_ids_file)
 
     # Set up logging
-    log_file = os.path.join(receptor_folder, f"{receptor_name}_console_output.log")
-    logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s %(message)s')
-
-    logging.info(f"Tolerance (Å): {tol}")
-    print(f"Docking tolerance set to {tol} Å.")
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
     # Folder for ligands
     ligands_folder = os.path.join(script_dir, 'ligands')
+    ligands_file = args.ligands
+    ligands_path = os.path.join(ligands_folder, ligands_file)
 
-    # Output results file
-    results_file = os.path.join(receptor_folder, f"{receptor_name}_results.txt")
+    if not os.path.exists(ligands_path):
+        raise FileNotFoundError(f"Ligand file not found: {ligands_path}")
+    else:
+        logging.info(f"Ligand file found: {ligands_path}")
 
-    # Initialize list to collect ligand results
-    ligand_results = []
+    suppl = Chem.SDMolSupplier(ligands_path)
+    if not suppl:
+        raise ValueError(f"Could not read ligands from {ligands_path} or file is empty.")
+    else:
+        logging.info(f"Number of ligands read: {len(suppl)}")
 
-    # Start processing
-    try:
-        # Download and prepare receptor
-        downloaded_pdb_path, protein_name = download_pdb(PDB_ID, receptor_folder)
-        dirty_pdb = os.path.join(receptor_folder, f'{receptor_name}_dirty.pdb')
-        shutil.move(downloaded_pdb_path, dirty_pdb)
+    # Read PDB IDs from the CSV file
+    if not os.path.exists(receptors_file_path):
+        raise FileNotFoundError(f"Receptors file not found: {receptors_file_path}")
+    else:
+        logging.info(f"Receptors file found: {receptors_file_path}")
 
-        fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-        fix_pdb(dirty_pdb, fixed_pdb, ph=7.4)
+    with open(receptors_file_path, 'r') as receptors_file:
+        pdb_ids = [line.strip() for line in receptors_file if line.strip()]
 
-        receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
-        prepare_receptor(fixed_pdb, receptor_pdbqt)
+    if not pdb_ids:
+        raise ValueError("No PDB IDs found in the receptors file.")
 
-        # Run P2Rank
-        output_dir = os.path.join(receptor_folder, '01_p2rank_output')
-        run_p2rank(fixed_pdb, output_dir)
+    # Loop to work on multiple receptors
+    for PDB_ID in pdb_ids:
+        pocket_number = args.pckt
+        receptor_name = PDB_ID
+        tol = args.tol
+        exhaustiveness = args.exhaust
+        energy_range = args.energy_range
 
-        # Get docking box parameters
-        center_x, center_y, center_z, Size_x, Size_y, Size_z, predictions_csv = get_docking_box(output_dir, fixed_pdb, tol, pocket_number)
+        # Set up paths
+        receptor_folder = os.path.join(script_dir, receptor_name)
+        if not os.path.exists(receptor_folder):
+            os.makedirs(receptor_folder, exist_ok=True)
 
-        # Read ligands from SDF file
-        ligands_path = os.path.join(ligands_folder, ligands_file)
-        if not os.path.exists(ligands_path):
-            raise FileNotFoundError(f"Ligand file not found: {ligands_path}")
-        else:
-            logging.info(f"Ligand file found: {ligands_path}")
+        # Set up logging for this receptor
+        log_file = os.path.join(receptor_folder, f"{receptor_name}_console_output.log")
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s %(message)s')
+        file_handler.setFormatter(formatter)
+        logging.getLogger().addHandler(file_handler)
 
-        suppl = Chem.SDMolSupplier(ligands_path)
-        if not suppl:
-            raise ValueError(f"Could not read ligands from {ligands_path} or file is empty.")
-        else:
-            logging.info(f"Number of ligands read: {len(suppl)}")
+        logging.info(f"Processing receptor {PDB_ID}")
+        logging.info(f"Tolerance (Å): {tol}")
+        print(f"Docking tolerance set to {tol} Å.")
 
-        with open(results_file, 'w') as rf:
-            for idx, mol in enumerate(suppl):
-                if mol is None:
-                    logging.warning(f"Skipping invalid molecule at index {idx}")
-                    continue
-                ligand_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"ligand_{idx}"
-                ligand_folder = os.path.join(receptor_folder, ligand_name)
-                os.makedirs(ligand_folder, exist_ok=True)
+        # Output results file
+        results_file = os.path.join(receptor_folder, f"{receptor_name}_results.txt")
 
-                ligand_pdb = os.path.join(ligand_folder, f"{ligand_name}.pdb")
-                ligand_pdbqt = os.path.join(ligand_folder, f"{ligand_name}.pdbqt")
-                output_pdbqt = os.path.join(ligand_folder, f"{receptor_name}_{ligand_name}.pdbqt")
+        # Initialize list to collect ligand results
+        ligand_results = []
 
-                # Save ligand to PDB
-                write_mol_to_pdb(mol, ligand_pdb)
+        # Start processing
+        try:
+            # Download and prepare receptor
+            downloaded_pdb_path, protein_name = download_pdb(PDB_ID, receptor_folder)
+            dirty_pdb = os.path.join(receptor_folder, f'{receptor_name}_dirty.pdb')
+            shutil.move(downloaded_pdb_path, dirty_pdb)
 
-                # Generate 2D coordinates and save image
-                AllChem.Compute2DCoords(mol)
-                image_filename = os.path.join(ligand_folder, f"{ligand_name}.svg")
-                draw_molecule_to_file(mol, image_filename)
+            fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
+            fix_pdb(dirty_pdb, fixed_pdb, ph=7.4)
 
-                # Prepare ligand
-                prepare_ligand(ligand_pdb, ligand_pdbqt)
+            receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
+            prepare_receptor(fixed_pdb, receptor_pdbqt)
 
-                # Run docking
-                vina_output, affinities = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
-                                    center_x, center_y, center_z,
-                                    Size_x, Size_y, Size_z,
-                                    exhaustiveness, energy_range)
+            # Run P2Rank
+            output_dir = os.path.join(receptor_folder, '01_p2rank_output')
+            run_p2rank(fixed_pdb, output_dir)
 
-                # Save vina output to results file
-                rf.write(f"Ligand: {ligand_name}\n")
-                rf.write(vina_output)
-                rf.write("\n\n")
+            # Get docking box parameters
+            center_x, center_y, center_z, Size_x, Size_y, Size_z, predictions_csv = get_docking_box(output_dir, fixed_pdb, tol, pocket_number)
 
-                # Display information in the terminal after docking is complete
-                print(f'Ligand {ligand_name} docked successfully!')
+            with open(results_file, 'w') as rf:
+                for idx, mol in enumerate(suppl):
+                    if mol is None:
+                        logging.warning(f"Skipping invalid molecule at index {idx}")
+                        continue
+                    ligand_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"ligand_{idx}"
+                    ligand_folder = os.path.join(receptor_folder, ligand_name)
+                    os.makedirs(ligand_folder, exist_ok=True)
 
-                # Generate visualization 
-                generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
+                    ligand_pdb = os.path.join(ligand_folder, f"{ligand_name}.pdb")
+                    ligand_pdbqt = os.path.join(ligand_folder, f"{ligand_name}.pdbqt")
+                    output_pdbqt = os.path.join(ligand_folder, f"{receptor_name}_{ligand_name}.pdbqt")
 
-                # Get the first affinity value
-                if affinities:
-                    affinity = affinities[0][0]
-                else:
-                    affinity = None
+                    # Save ligand to PDB
+                    write_mol_to_pdb(mol, ligand_pdb)
 
-                # Collect ligand results
-                ligand_results.append({
-                    'name': ligand_name,
-                    'image': image_filename,
-                    'affinity': affinity,
-                    'output_pdbqt': output_pdbqt
-                })
+                    # Generate 2D coordinates and save image
+                    AllChem.Compute2DCoords(mol)
+                    image_filename = os.path.join(ligand_folder, f"{ligand_name}.svg")
+                    draw_molecule_to_file(mol, image_filename)
 
-        # Generate HTML results file
-        html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
-        generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, args.pckt, receptor_pdbqt)
+                    # Prepare ligand
+                    prepare_ligand(ligand_pdb, ligand_pdbqt)
 
-        print(f'Results HTML file generated: {html_file}')
+                    # Run docking
+                    vina_output, affinities = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
+                                        center_x, center_y, center_z,
+                                        Size_x, Size_y, Size_z,
+                                        exhaustiveness, energy_range)
 
-    except Exception as e:
-        logging.error(f"An error occurred: {e}")
-        print(f"An error occurred: {e}")
-        sys.exit(1)
+                    # Save vina output to results file
+                    rf.write(f"Ligand: {ligand_name}\n")
+                    rf.write(vina_output)
+                    rf.write("\n\n")
+
+                    # Display information in the terminal after docking is complete
+                    print(f'Ligand {ligand_name} docked successfully!')
+
+                    # Generate visualization 
+                    generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
+
+                    # Get the first affinity value
+                    if affinities:
+                        affinity = affinities[0][0]
+                    else:
+                        affinity = None
+
+                    # Collect ligand results
+                    ligand_results.append({
+                        'name': ligand_name,
+                        'image': image_filename,
+                        'affinity': affinity,
+                        'output_pdbqt': output_pdbqt
+                    })
+
+            # Generate HTML results file
+            html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
+            generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, args.pckt, receptor_pdbqt)
+
+            print(f'Results HTML file generated: {html_file}')
+
+        except Exception as e:
+            logging.error(f"An error occurred with PDB ID {PDB_ID}: {e}")
+            print(f"An error occurred with PDB ID {PDB_ID}: {e}")
+            # Remove the file handler after processing each receptor
+            logging.getLogger().removeHandler(file_handler)
+            continue  # Proceed to the next PDB_ID
+
+        # Remove the file handler after processing each receptor
+        logging.getLogger().removeHandler(file_handler)
+
+# Function definitions (outside of the main function and loops)
 
 @logger_decorator
 def download_pdb(pdb_id, download_dir):
@@ -246,7 +275,7 @@ def download_pdb(pdb_id, download_dir):
     logging.info(f"PDB file downloaded: {expected_filename}")
     
     # Extract protein name
-    parser = PDB.PDBParser(QUIET=True)  # Using your import style
+    parser = PDB.PDBParser(QUIET=True)
     structure = parser.get_structure(pdb_id, expected_filename)
     header = structure.header  # Header contains metadata
     protein_name = header.get('name', 'Unknown')  # Extract protein name if available
@@ -349,9 +378,9 @@ def get_docking_box(output_dir, receptor_pdb, tol, pocket_number):
         pred.columns = pred.columns.str.strip()
 
         # Obtaining center_x, center_y, center_z values
-        center_x = float(df['center_x'].iloc[0])
-        center_y = float(df['center_y'].iloc[0])
-        center_z = float(df['center_z'].iloc[0])
+        center_x = float(df['center_x'].iloc[pocket_number - 1])
+        center_y = float(df['center_y'].iloc[pocket_number - 1])
+        center_z = float(df['center_z'].iloc[pocket_number - 1])
 
         # Selection of residues for chosen pocket 
         pocket = pred[pred['pocket'] == pocket_number]
@@ -495,25 +524,6 @@ def write_mol_to_pdb(mol, pdb_filename):
 
 def draw_molecule_to_file(mol, image_filename):
     try:
-        """
-        # Calculate the bounding box of the molecule
-        width=400
-        conf = mol.GetConformer()
-        coords = [conf.GetAtomPosition(i) for i in range(mol.GetNumAtoms())]
-        x_coords = [coord.x for coord in coords]
-        y_coords = [coord.y for coord in coords]
-
-        # Range along X and Y axes
-        x_range = max(x_coords) - min(x_coords)
-        y_range = max(y_coords) - min(y_coords)
-
-        # Calculate height proportionally to width
-        if x_range > 0:
-            aspect_ratio = y_range / x_range
-        else:
-            aspect_ratio = 1.0  # Default aspect ratio if something went wrong
-        height = int(width * aspect_ratio)
-        """
         # Prepare SVG drawer
         drawer = rdMolDraw2D.MolDraw2DSVG(400, 150)
         options = drawer.drawOptions()
@@ -672,7 +682,6 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         logging.error(f"Error in generating HTML results: {e}")
         print(f"Error in generating HTML results: {e}")
         raise
-
 
 if __name__ == "__main__":
     main()
