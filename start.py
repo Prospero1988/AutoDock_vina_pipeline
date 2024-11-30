@@ -19,11 +19,12 @@ run_command(['conda', 'install', '-y', '-c', 'conda-forge',
 # Ensure pip is installed in the current Conda environment
 print("Ensuring pip is installed in Conda environment...")
 run_command(['conda', 'install', '-y', '-c', 'conda-forge', 'pip'])
+run_command(['conda', 'install', '-y', '-c', 'conda-forge', 'pymol-open-source'])
 
 # Install remaining Python libraries with pip (if not available in Conda)
 print("Installing additional Python libraries with pip...")
 run_command(['pip', 'install', '--upgrade', 'pip'])
-run_command(['pip', 'install', 'pymol-open-source'])
+#run_command(['pip', 'install', 'pymol-open-source'])
 
 # Install system tools
 print("Updating package list...")

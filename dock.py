@@ -26,7 +26,6 @@ Arguments:
 - --exhaust: Specifies how thorough the search should be for the best binding poses.
                 Higher values increase precision but require more computation time. (default: 20)
 - --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered. (default: 2)
-- --keep_water: If specified, retains water in the receptor structure. By default, water is removed.
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
 be saved in ./PDB_ID/ligand_name_or_number.
@@ -89,8 +88,6 @@ def main():
     parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
     parser.add_argument('--exhaust', type=int, default=20, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 20).')
     parser.add_argument('--energy_range', type=int, default=2, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 2).')
-    parser.add_argument('--keep_water', action='store_true', help='If specified, retains water molecules in the receptor structure. By default, water is removed.')
-    parser.add_argument('--keep_heterogens', action='store_true', help='If specified, retains heteroatoms (e.g., ions, cofactors) in the receptor PDB structure. By default, heteroatoms are removed.')
 
     args = parser.parse_args()
     pocket_number = args.pckt
@@ -100,8 +97,6 @@ def main():
     tol = args.tol
     exhaustiveness = args.exhaust
     energy_range = args.energy_range
-    keepWater = args.keep_water
-    heterogens = args.keep_heterogens
 
     # Set up paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -128,12 +123,12 @@ def main():
     # Start processing
     try:
         # Download and prepare receptor
-        downloaded_pdb_path = download_pdb(PDB_ID, receptor_folder)
+        downloaded_pdb_path, protein_name = download_pdb(PDB_ID, receptor_folder)
         dirty_pdb = os.path.join(receptor_folder, f'{receptor_name}_dirty.pdb')
         shutil.move(downloaded_pdb_path, dirty_pdb)
 
         fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-        fix_pdb(dirty_pdb, fixed_pdb, heterogens, keepWater, ph=7.4)
+        fix_pdb(dirty_pdb, fixed_pdb, ph=7.4)
 
         receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
         prepare_receptor(fixed_pdb, receptor_pdbqt)
@@ -215,7 +210,7 @@ def main():
 
         # Generate HTML results file
         html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
-        generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv)
+        generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, args.pckt, receptor_pdbqt)
 
         print(f'Results HTML file generated: {html_file}')
 
@@ -249,10 +244,18 @@ def download_pdb(pdb_id, download_dir):
     if not os.path.exists(expected_filename):
         raise FileNotFoundError(f"Failed to download PDB {pdb_id}.")
     logging.info(f"PDB file downloaded: {expected_filename}")
-    return expected_filename
+    
+    # Extract protein name
+    parser = PDB.PDBParser(QUIET=True)  # Using your import style
+    structure = parser.get_structure(pdb_id, expected_filename)
+    header = structure.header  # Header contains metadata
+    protein_name = header.get('name', 'Unknown')  # Extract protein name if available
+    logging.info(f"Protein name for {pdb_id}: {protein_name}")
+    
+    return expected_filename, protein_name
 
 @logger_decorator
-def fix_pdb(input_pdb, output_pdb, heterogens, keepWater, ph=7.4):
+def fix_pdb(input_pdb, output_pdb, ph=7.4):
     try:
         fixer = PDBFixer(filename=input_pdb)
 
@@ -279,20 +282,7 @@ def fix_pdb(input_pdb, output_pdb, heterogens, keepWater, ph=7.4):
         fixer.removeChains(chains_to_remove)
 
         # Remove heterogens (including water)
-        if heterogens:
-            logging.info("Heterogens are retained in the receptor structure.")
-            print("Heterogens are retained in the receptor structure.")
-            # Do not call removeHeterogens() since we want to keep heterogens
-            if not keepWater:
-                # Remove only water molecules
-                fixer.removeHeterogens(keepWater=False)
-                logging.info("Water molecules removed from the receptor structure.")
-                print("Water molecules are removed from the receptor structure.")
-        else:
-            # Remove heterogens; control water retention with keepWater
-            fixer.removeHeterogens(keepWater=keepWater)
-            logging.info(f"Heterogens removed; water molecules {'retained' if keepWater else 'removed'}.")
-            print(f"Heterogens removed; water molecules {'retained' if keepWater else 'removed'} in the receptor structure.")
+        fixer.removeHeterogens(keepWater=False)
 
         # Find missing residues
         fixer.findMissingResidues()
@@ -503,9 +493,11 @@ def write_mol_to_pdb(mol, pdb_filename):
         print(f"Error in writing molecule to PDB: {e}")
         raise
 
-def draw_molecule_to_file(mol, image_filename, width=400):
+def draw_molecule_to_file(mol, image_filename):
     try:
+        """
         # Oblicz bounding box molekuły
+        width=400
         conf = mol.GetConformer()
         coords = [conf.GetAtomPosition(i) for i in range(mol.GetNumAtoms())]
         x_coords = [coord.x for coord in coords]
@@ -521,9 +513,9 @@ def draw_molecule_to_file(mol, image_filename, width=400):
         else:
             aspect_ratio = 1.0  # Domyślna proporcja, gdyby coś poszło nie tak
         height = int(width * aspect_ratio)
-
+        """
         # Przygotowanie rysownika SVG
-        drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
+        drawer = rdMolDraw2D.MolDraw2DSVG(400, 150)
         options = drawer.drawOptions()
         options.padding = 0.1  # Mały margines
         options.fixedFontSize = 11  # Stały rozmiar czcionki
@@ -550,7 +542,7 @@ def draw_molecule_to_file(mol, image_filename, width=400):
         print(f"Error in drawing molecule image: {e}")
         raise
 
-def generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv):
+def generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, pckt, receptor_pdbqt):
     try:
         # Wczytaj dane z P2RANK i wyczyść białe znaki
         p2rank_csv = predictions_csv
@@ -558,6 +550,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         df_p2rank.columns = df_p2rank.columns.str.strip()
         df_p2rank = df_p2rank.map(lambda x: x.strip() if isinstance(x, str) else x)
         df_p2rank['score'] = df_p2rank['score'].astype(float).map("{:.2f}".format)
+        df_p2rank['probability'] = df_p2rank['probability'].astype(float).map("{:.2f}".format)
 
         with open(html_file, 'w', encoding='utf-8') as hf:
             hf.write('<html>\n')
@@ -568,26 +561,42 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('table { border-collapse: collapse; margin: auto; }\n')
             hf.write('th, td { border: 1px solid black; padding: 5px; text-align: center; vertical-align: middle; }\n')
             hf.write('th { background-color: #f2f2f2; }\n')
-            hf.write('td:nth-child(3), th:nth-child(3) { width: 400px; } /* Kolumna z obrazkami */\n')
             hf.write('img { display: block; margin: auto; }\n')
             hf.write('.probability { background-color: #ffecd9; } /* Pastelowy pomarańczowy */\n')
-            # Dodano style dla nowej kolumny "Wyniki dokowania"
-            hf.write('td:nth-child(5), th:nth-child(5) { max-width: 200px; }\n')
-            # Styl dla drugiej tabelki (dostosowanie kolumny residue_ids)
-            hf.write('.p2rank-table td:nth-child(5) {\n')
-            hf.write('  max-width: 300px;\n')
+            # Styl dla kolumny "Wyniki dokowania" w pierwszej tabeli
+            hf.write('td:nth-child(5), th:nth-child(5) {\n')
+            hf.write('  max-width: 200px;\n')  # Maksymalna szerokość
             hf.write('  word-wrap: break-word;\n')  # Zawijanie tekstu
+            hf.write('  white-space: normal;\n')  # Normalne zawijanie
             hf.write('  text-align: left;\n')  # Wyrównanie do lewej
-            hf.write('  vertical-align: top;\n')  # Wyrównanie do góry
+            hf.write('}\n')
+            # Styl dla kolumny "score" w drugiej tabeli z dodatkowymi marginesami
+            hf.write('.p2rank-table td:nth-child(3), .p2rank-table th:nth-child(3) {\n')
+            hf.write('  white-space: nowrap;\n')  # Dopasowanie szerokości do zawartości
+            hf.write('  padding-left: 15px;\n')  # Margines wewnętrzny z lewej
+            hf.write('  padding-right: 15px;\n')  # Margines wewnętrzny z prawej
+            hf.write('}\n')
+            # Styl dla kolumny "residue_ids" w drugiej tabeli
+            hf.write('.p2rank-table td:nth-child(5), .p2rank-table th:nth-child(5) {\n')
+            hf.write('  padding: 15px;\n')  # Margines wewnętrzny dla ostatniej kolumny
+            hf.write('  text-align: left;\n')  # Opcjonalnie: wyrównanie tekstu do lewej
             hf.write('}\n')
             hf.write('</style>\n')
+
             hf.write('</head>\n')
             hf.write('<body>\n')
 
             # Nagłówek dla tabelki z wynikami dokowania
-            header_text = f'Wyniki dokowania do receptora o kodzie PDB: <span style="color: red;">{receptor_name}</span> </br>przy pomocy struktur zapisanych w pliku: <span style="color: navy;">{ligands_file}</span></br>'
+            receptor_pdbqt = os.path.basename(receptor_pdbqt)
+            header_text = f'Wyniki dokowania do receptora o kodzie PDB: <span style="color: red;">{receptor_name}</span></br>przy pomocy struktur zapisanych w pliku: <span style="color: navy;">{ligands_file}</span></br>'
             hf.write(f'<h2 style="text-align: center;">{header_text}</h2>\n')
-
+            hf.write(f'</br><h2 style="text-align: center; color: green; max-width: 600px; word-wrap: break-word; margin: auto;">{protein_name}</h2></br>')
+            hf.write(f'<h3 style="text-align: center;">Dokowanie do kieszeni (pocket) o numerze: <span style="color: red;">{pckt}</span></br></h2>\n')
+            hf.write(f'<div style="text-align: center;">')
+            hf.write(f'<a href="{receptor_pdbqt}" download="receptor_structure.pdbqt" type="application/octet-stream">Struktura receptora (plik .PDBQT). DOWNLOAD</a>')
+            hf.write('</div>')
+            hf.write('</br>')
+            
             # Pierwsza tabela: Wyniki dokowania
             hf.write('<table>\n')
             hf.write('<tr><th>Numer</th><th>Nazwa związku</th><th>Struktura</th><th>Energia dokowania<br/>(kcal/mol)</th><th>Wyniki dokowania</th></tr>\n')
@@ -607,7 +616,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                 hf.write(f'<td>{name}</td>\n')
                 hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n')
                 hf.write(f'<td>{affinity_str}</td>\n')
-                hf.write(f'<td><a href="{output_pdbqt_path}" download>{link_text}</a></td>\n')
+                hf.write(f'<td><a href="{output_pdbqt_path}" download="{link_text}" type="application/octet-stream">{link_text}</a></td>\n')
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
