@@ -1,5 +1,5 @@
 
-# Docking System
+# AutoDock Vina pipeline with P2RANK for HTS docking
 
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
