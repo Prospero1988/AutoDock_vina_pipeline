@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Installation Guide for Docking System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #2E3A59;
+        }
+        code {
+            background-color: #F4F4F4;
+            padding: 2px 4px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background-color: #F4F4F4;
+            padding: 10px;
+            overflow: auto;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        hr {
+            margin: 40px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Installation Guide for Docking System</h1>
+
+<h2>Copying Program Files</h2>
+
+<ol>
+    <li>
+        <strong>Copy the entire <code>dock</code> folder to the home directory of the new user.</strong>
+    </li>
+    <li>
+        <strong>Grant the appropriate permissions from the admin account:</strong>
+        <ul>
+            <li>Navigate to the user's home directory:
+                <pre><code>cd /home/username</code></pre>
+            </li>
+            <li>Grant access rights to the <code>dock</code> folder:
+                <pre><code>chmod -R 755 ~/dock
+sudo chown -R username:username /home/username/dock</code></pre>
+            </li>
+        </ul>
+    </li>
+</ol>
+
+<h2>Installing the System on a Computer without AutoDock Vina, P2RANK, Open Babel, PyMol</h2>
+
+<ol>
+    <li>
+        <strong>Navigate to the installation directory:</strong>
+        <ul>
+            <li>The <code>installation</code> subdirectory contains the <code>install.sh</code> script, which downloads and installs Miniconda and sets up the <code>auto_dock</code> environment with Python 3.11.</li>
+            <li>Navigate to this directory:
+                <pre><code>cd /home/username/dock/installation</code></pre>
+            </li>
+        </ul>
+    </li>
+    <li>
+        <strong>Grant execution rights to the script:</strong>
+        <pre><code>chmod +x install.sh</code></pre>
+    </li>
+    <li>
+        <strong>Run the installation script:</strong>
+        <pre><code>bash install.sh</code></pre>
+    </li>
+    <li>
+        <strong>The script will install all required libraries and programs and perform their appropriate configuration.</strong>
+    </li>
+</ol>
+
+<h2>Installing Necessary Packages for a New User (If the System is Already Configured)</h2>
+
+<ol>
+    <li>
+        <strong>Navigate to the installation directory:</strong>
+        <pre><code>cd /home/username/dock/installation</code></pre>
+    </li>
+    <li>
+        <strong>Grant execution rights to the script:</strong>
+        <pre><code>chmod +x mini_install.sh</code></pre>
+    </li>
+    <li>
+        <strong>Run the installation script:</strong>
+        <pre><code>bash mini_install.sh</code></pre>
+    </li>
+    <li>
+        <strong>The script will install all required libraries and programs and perform their appropriate configuration.</strong>
+    </li>
+</ol>
+
+</body>
+</html>

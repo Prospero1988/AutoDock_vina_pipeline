@@ -1,9 +1,0 @@
-Instalation INFO:
-
-Instructions:
-Ensure the modules.py file is in the same directory as install.sh.
-Grant execution permissions to the script:
-chmod +x install.sh
-Execute the script:
-./install.sh
-This script will download Miniconda, install it, create and activate the auto_dock environment, and run the modules.py file.

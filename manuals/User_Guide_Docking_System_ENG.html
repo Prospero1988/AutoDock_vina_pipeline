@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Manual for the Docking System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1, h2, h3 {
+            color: #2E3A59;
+        }
+        code {
+            background-color: #F4F4F4;
+            padding: 2px 4px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background-color: #F4F4F4;
+            padding: 10px;
+            overflow: auto;
+        }
+        ul {
+            list-style-type: disc;
+            margin-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        hr {
+            margin: 40px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>User Manual for the Docking System</h1>
+
+<h2>Preparing Input Files for Calculations</h2>
+
+<ol>
+    <li>
+        <strong>Connect to the computational server:</strong>
+        <ul>
+            <li>Use any SCP manager (e.g., <strong>WinSCP</strong> or <strong>PuTTY</strong>) and connect to the server at IP address: <code>172.22.31.82</code>.</li>
+            <li>Log in using your unique username and password.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Prepare the working directory:</strong>
+        <ul>
+            <li>After logging in, you will be in your home directory <code>./home</code>.</li>
+            <li>There is a directory named <code>dock</code> there. <strong>Do not modify or delete its contents.</strong></li>
+            <li>In your home directory, create a new directory named after your project, e.g., <code>TAAR1_trial_01</code>.</li>
+            <li><strong>Copy</strong> all contents of the <code>dock</code> directory into your newly created project directory. <strong>Do not move the files!</strong></li>
+        </ul>
+    </li>
+    <li>
+        <strong>Prepare the input files:</strong>
+        <ul>
+            <li>Navigate to your new project directory, e.g.:
+                <pre><code>cd ./TAAR1_trial_01</code></pre>
+            </li>
+            <li>The directory contains files and subdirectories. You are interested in two of them:
+                <ul>
+                    <li><strong><code>ligands</code></strong>: place your SDF file with ligand structures for docking here. The file name can be any name.</li>
+                    <li><strong><code>receptors</code></strong>: this contains a CSV file named <code>receptors.csv</code>, where the PDB codes of the receptors are listed one below the other. You can rename this file as you wish.</li>
+                </ul>
+            </li>
+            <li>Both directories contain sample files showing the correct data format.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Configure the script to start calculations:</strong>
+        <ul>
+            <li>In the main project directory, there is a file named <code>start_docking.sh</code>. Its structure looks like this:
+                <pre><code>#!/bin/bash
+#SBATCH --job-name=docking_job        # Job name
+#SBATCH --output=/dev/null            # No SLURM logs
+#SBATCH --error=/dev/null             # No SLURM errors
+#SBATCH --ntasks=1                    # Only one process
+#SBATCH --time=INFINITE               # No time limit
+#SBATCH --partition=main              # Default partition
+
+# Activate conda environment
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate auto_dock
+
+# Run Python script
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 20 --energy_range 2</code></pre>
+            </li>
+            <li><strong>Modifying parameters:</strong>
+                <ul>
+                    <li>If you do not change the names of the input files (<code>receptors.csv</code> and <code>ligands.sdf</code>), you do not need to edit the last line.</li>
+                    <li>Otherwise, adjust the parameters in the last line:
+                        <ul>
+                            <li><code>--pdb_ids</code>: name of the CSV file with receptor PDB codes.</li>
+                            <li><code>--ligands</code>: name of the SDF file with ligands for docking.</li>
+                            <li><code>--tol</code>: an integer (can be negative; in that case, enclose it in quotes, e.g., <code>'-1'</code>) that increases or decreases the docking grid size in all three dimensions (in angstroms).</li>
+                            <li><code>--pckt</code>: an integer from 1 to the number of pockets calculated by P2RANK. Specifies which pocket will be used for docking.</li>
+                            <li><code>--exhaust</code>: the <em>exhaustiveness</em> parameter for AutoDock Vina; default value is 20. More information can be found in the AutoDock Vina documentation.</li>
+                            <li><code>--energy_range</code>: parameter controlling the energy range during docking; default value is 2. A higher value (e.g., 3) allows for greater ligand flexibility.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li>After making changes, save the <code>start_docking.sh</code> file.</li>
+        </ul>
+    </li>
+</ol>
+
+<h2>Connecting via SSH</h2>
+
+<ol>
+    <li>
+        <strong>Launching the terminal:</strong>
+        <ul>
+            <li><strong>Windows:</strong> Press <code>Win + R</code>, type <code>cmd</code>, and press Enter to open the command prompt. You can also use <strong>PowerShell</strong> or an SSH client like <strong>MobaXterm</strong>.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Connect to the server:</strong>
+        <ul>
+            <li>Ensure you are connected to the local network or using VPN.</li>
+            <li>Connect to the server by typing in the terminal:
+                <pre><code>ssh username@172.22.31.82</code></pre>
+            </li>
+            <li>Enter your password when prompted.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Navigate to the project directory:</strong>
+        <ul>
+            <li>Go to the project directory you created earlier:
+                <pre><code>cd ./TAAR1_trial_01</code></pre>
+            </li>
+            <li>Ensure the <code>start_docking.sh</code> file has the appropriate execution permissions:
+                <pre><code>chmod +x start_docking.sh</code></pre>
+            </li>
+        </ul>
+    </li>
+</ol>
+
+<h2>Running Calculations Using the SLURM System</h2>
+
+<ol>
+    <li>
+        <strong>Checking the job queue status:</strong>
+        <ul>
+            <li>To check the current calculation queue:
+                <pre><code>squeue</code></pre>
+            </li>
+            <li>This will display a list of jobs, including Job ID, user, and other information.</li>
+            <li>To get detailed information about a specific job:
+                <pre><code>scontrol show job &lt;JobID&gt;</code></pre>
+            </li>
+            <li>To cancel your job:
+                <pre><code>scancel &lt;JobID&gt;</code></pre>
+            </li>
+        </ul>
+    </li>
+    <li>
+        <strong>Add your job to the queue:</strong>
+        <ul>
+            <li>Start the calculations by adding your job to the SLURM queue:
+                <pre><code>sbatch start_docking.sh</code></pre>
+            </li>
+            <li>After receiving a message that your job has been accepted, you can disconnect from the terminal and wait for the calculations to complete.</li>
+        </ul>
+    </li>
+</ol>
+
+<h2>Docking Results</h2>
+
+<ul>
+    <li>
+        <strong>Location of results:</strong>
+        <ul>
+            <li>The results are located in the project directory, e.g., <code>TAAR1_trial_01</code>.</li>
+            <li>Subdirectories for individual receptors are created in the main directory.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Contents of the receptor subdirectory:</strong>
+        <ul>
+            <li><strong>HTML file</strong>: summary of docking results.</li>
+            <li><strong>Structural files:</strong>
+                <ul>
+                    <li><code>Receptor_name.pdbqt</code>: final receptor structure used in docking.</li>
+                    <li><code>Receptor_name_dirty.pdb</code>: native structure downloaded from the PDB database.</li>
+                    <li><code>Receptor_name_fixed.pdb</code>: cleaned PDB structure used for calculations.</li>
+                </ul>
+            </li>
+            <li><strong>Logs and results:</strong>
+                <ul>
+                    <li><code>Receptor_name_console_output.log</code>: detailed script execution log.</li>
+                    <li><code>Receptor_name_results.txt</code>: detailed information about docking poses from AutoDock Vina.</li>
+                </ul>
+            </li>
+        </ul>
+    </li>
+    <li>
+        <strong>P2RANK results:</strong>
+        <ul>
+            <li>Located in the <code>01_p2rank_output</code> folder.</li>
+            <li>Particularly useful is the file with the <code>.pdb.pml</code> extension in the <code>visualisations</code> subfolder, which can be opened in <strong>PyMol</strong> for visualizing the docking pockets.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Ligand docking results:</strong>
+        <ul>
+            <li>The results for individual ligands are located in the receptor subdirectories. For example, for the ligand aspirin and receptor <code>8W88</code>:
+                <ul>
+                    <li><code>8W88_aspirin.pdbqt</code>: all docking positions for the ligand.</li>
+                    <li><code>8W88_aspirin_docking.png</code>: image with the best-docked pose of the ligand.</li>
+                    <li><code>aspirin.pdb</code>: ligand structure in PDB format.</li>
+                    <li><code>aspirin.pdbqt</code>: ligand prepared for docking.</li>
+                    <li><code>aspirin.svg</code>: graphic file with the 2D structure of the ligand.</li>
+                </ul>
+            </li>
+        </ul>
+    </li>
+</ul>
+
+<h2>Using PyMol</h2>
+
+<ul>
+    <li>
+        <strong>PyMol</strong> is installed on every account and allows you to view files located on the server.
+    </li>
+    <li>
+        <strong>Requirements:</strong>
+        <ul>
+            <li>PyMol requires an X11 server program to run.</li>
+            <li>We recommend using <strong>MobaXterm</strong>, which has a built-in X11 server and is an advanced SSH terminal. A portable version is available that does not require installation.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Launching PyMol:</strong>
+        <ol>
+            <li>Ensure the <strong>conda</strong> environment is active:
+                <pre><code>conda activate auto_dock</code></pre>
+            </li>
+            <li>Start PyMol:
+                <pre><code>pymol</code></pre>
+            </li>
+        </ol>
+    </li>
+    <li>
+        <strong>Notes:</strong>
+        <ul>
+            <li>PyMol allows you to view files located on the server. It does not allow viewing files on your local computer.</li>
+        </ul>
+    </li>
+</ul>
+
+</body>
+</html>

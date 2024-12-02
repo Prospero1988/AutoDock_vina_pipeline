@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Instrukcja instalacji systemu dokowania</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #2E3A59;
+        }
+        code {
+            background-color: #F4F4F4;
+            padding: 2px 4px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background-color: #F4F4F4;
+            padding: 10px;
+            overflow: auto;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        hr {
+            margin: 40px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Instrukcja instalacji systemu dokowania</h1>
+
+<h2>Kopiowanie plików programu</h2>
+
+<ol>
+    <li>
+        <strong>Skopiuj cały folder <code>dock</code> do katalogu domowego (<code>home</code>) nowego użytkownika.</strong>
+    </li>
+    <li>
+        <strong>Nadaj odpowiednie uprawnienia z konta administratora:</strong>
+        <ul>
+            <li>Przejdź do katalogu domowego użytkownika:
+                <pre><code>cd /home/nazwa_uzytkownika</code></pre>
+            </li>
+            <li>Nadaj prawa dostępu do katalogu <code>dock</code>:
+                <pre><code>chmod -R 755 ~/dock
+sudo chown -R nazwa_uzytkownika:nazwa_uzytkownika /home/nazwa_uzytkownika/dock</code></pre>
+            </li>
+        </ul>
+    </li>
+</ol>
+
+<h2>Instalacja systemu na komputerze bez zainstalowanych AutoDock Vina, P2RANK, Open Babel, PyMol</h2>
+
+<ol>
+    <li>
+        <strong>Przejdź do katalogu instalacyjnego:</strong>
+        <ul>
+            <li>W podkatalogu <code>installation</code> znajduje się skrypt <code>install.sh</code>, który pobiera i instaluje Minicondę oraz tworzy środowisko <code>auto_dock</code> z Pythonem 3.11.</li>
+            <li>Przejdź do tego katalogu:
+                <pre><code>cd /home/nazwa_uzytkownika/dock/installation</code></pre>
+            </li>
+        </ul>
+    </li>
+    <li>
+        <strong>Nadaj prawa uruchomienia skryptu:</strong>
+        <pre><code>chmod +x install.sh</code></pre>
+    </li>
+    <li>
+        <strong>Uruchom skrypt instalacyjny:</strong>
+        <pre><code>bash install.sh</code></pre>
+    </li>
+    <li>
+        <strong>Skrypt zainstaluje wszystkie wymagane biblioteki i programy oraz wykona ich odpowiednią konfigurację.</strong>
+    </li>
+</ol>
+
+<h2>Instalacja niezbędnych pakietów dla nowego użytkownika (jeśli system jest już skonfigurowany)</h2>
+
+<ol>
+    <li>
+        <strong>Przejdź do katalogu instalacyjnego:</strong>
+        <pre><code>cd /home/nazwa_uzytkownika/dock/installation</code></pre>
+    </li>
+    <li>
+        <strong>Nadaj prawa uruchomienia skryptu:</strong>
+        <pre><code>chmod +x mini_install.sh</code></pre>
+    </li>
+    <li>
+        <strong>Uruchom skrypt instalacyjny:</strong>
+        <pre><code>bash mini_install.sh</code></pre>
+    </li>
+    <li>
+        <strong>Skrypt zainstaluje wszystkie wymagane biblioteki i programy oraz wykona ich odpowiednią konfigurację.</strong>
+    </li>
+</ol>
+
+</body>
+</html>
