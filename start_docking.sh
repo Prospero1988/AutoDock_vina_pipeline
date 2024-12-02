@@ -11,4 +11,4 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate auto_dock
 
 # Running a Python script
-python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 20 --energy_range 2
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 16 --energy_range 3

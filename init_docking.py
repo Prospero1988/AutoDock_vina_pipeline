@@ -633,9 +633,16 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         p2rank_csv = predictions_csv
         df_p2rank = pd.read_csv(p2rank_csv)
         df_p2rank.columns = df_p2rank.columns.str.strip()
-        df_p2rank = df_p2rank.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+        df_p2rank = df_p2rank.map(lambda x: x.strip() if isinstance(x, str) else x)
         df_p2rank['score'] = df_p2rank['score'].astype(float).map("{:.2f}".format)
         df_p2rank['probability'] = df_p2rank['probability'].astype(float).map("{:.2f}".format)
+    
+        # **Sort ligand_results by 'affinity' from lowest to highest**
+        # Ligands with affinity=None will be placed at the end
+        ligand_results_sorted = sorted(
+            ligand_results,
+            key=lambda x: (x['affinity'] is None, x['affinity'] if x['affinity'] is not None else float('inf'))
+        )
     
         with open(html_file, 'w', encoding='utf-8') as hf:
             hf.write('<html>\n')
@@ -664,11 +671,11 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('}\n')
             # Style for the "residue_ids" column in the second table
             hf.write('.p2rank-table td:nth-child(5), .p2rank-table th:nth-child(5) {\n')
-            hf.write('  max-width: 400px;\n')  # Ograniczenie szerokości kolumny
-            hf.write('  word-wrap: break-word;\n')  # Zawijanie tekstu w kolumnie
-            hf.write('  white-space: normal;\n')  # Normalne białe znaki dla zawijania
-            hf.write('  padding: 15px;\n')  # Wewnętrzne marginesy
-            hf.write('  text-align: left;\n')  # Opcjonalnie: wyrównanie tekstu do lewej
+            hf.write('  max-width: 400px;\n')  # Limit column width
+            hf.write('  word-wrap: break-word;\n')  # Wrap text in column
+            hf.write('  white-space: normal;\n')  # Normal white space for wrapping
+            hf.write('  padding: 15px;\n')  # Internal margins
+            hf.write('  text-align: left;\n')  # Optional: align text to the left
             hf.write('}\n')
             hf.write('</style>\n')
     
@@ -686,10 +693,10 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('</div>')
             hf.write('</br>')
             
-            # First table: Docking results
+            # First table: Docking results (sorted by Docking Energy)
             hf.write('<table>\n')
             hf.write('<tr><th>Number</th><th>Compound Name</th><th>Structure</th><th>Docking Image</th><th class="docking-energy">Docking Energy<br/>(kcal/mol)</th><th>Docking Results</th></tr>\n')
-            for idx, result in enumerate(ligand_results, start=1):
+            for idx, result in enumerate(ligand_results_sorted, start=1):
                 name = result['name']
                 image_path = os.path.relpath(result['image'], os.path.dirname(html_file))
                 docking_image_path = os.path.relpath(result['docking_image'], os.path.dirname(html_file))
