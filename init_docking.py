@@ -672,7 +672,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
             hf.write('Docking system based on <b>AutoDock Vina v.1.2.5</b> and <b>P2RANK v.2.4.2</b><br/>\n')
             hf.write('<b>Author:</b> Arkadiusz Leniak <b>email:</b> arkadiusz.leniak@gmail.com<br/>\n')
-            hf.write('<b>github:</b> <a href="https://github.com/Prospero1988">https://github.com/Prospero1988</a>\n')
+            hf.write('<b>github:</b> <a href="https://github.com/Prospero1988/AutoDock_vina_pipeline">https://github.com/Prospero1988/AutoDock_vina_pipeline</a>\n')
             hf.write('</p>\n')
 
             hf.write('</body>\n')
