@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 This script automates the process of docking multiple ligands to multiple receptor proteins using AutoDock Vina.
-It reads receptor PDB IDs from a CSV file, downloads each receptor structure from the PDB database, prepares them for docking, and processes multiple ligands from an SDF file.
+It reads receptors PDB ID from a CSV file, downloads each receptor structure from the PDB database, prepares them for docking, and processes multiple ligands from an SDF file.
 
 Technologies used:
 - Biopython for handling PDB files and interacting with the PDB database.
@@ -215,6 +215,7 @@ def main():
 
                     # Generate visualization 
                     generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
+                    docking_image_path = os.path.join(ligand_folder, f"{receptor_name}_{ligand_name}_docking.png")
 
                     # Get the first affinity value
                     if affinities:
@@ -227,7 +228,8 @@ def main():
                         'name': ligand_name,
                         'image': image_filename,
                         'affinity': affinity,
-                        'output_pdbqt': output_pdbqt
+                        'output_pdbqt': output_pdbqt,
+                        'docking_image': docking_image_path
                     })
 
             # Generate HTML results file
@@ -480,15 +482,28 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
 @logger_decorator
 def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, receptor_name, ligand_name):
     try:
-        cmd.load(output_pdbqt, 'docked_ligand')
+        # Wczytanie struktur do PyMOL
         cmd.load(receptor_pdbqt, 'receptor')
+        cmd.load(output_pdbqt, 'ligand')
+        
+        # Kolorowanie receptora i ligandu
         cmd.color('cyan', 'receptor')
-        cmd.color('red', 'docked_ligand')
+        cmd.color('red', 'ligand')
+
+        # Ustawienie reprezentacji
+        cmd.show('cartoon', 'receptor')
+        cmd.show('sticks', 'ligand')
+
+        # Dostosowanie wizualizacji
         set_visualization_and_focus()
+
+        # Zapisanie obrazu jako PNG
         image_path = os.path.join(output_folder, f"{receptor_name}_{ligand_name}_docking.png")
         cmd.ray(1920, 1080)
         cmd.png(image_path, width=1920, height=1080, dpi=300)
         logging.info(f"Visualization saved: {image_path}")
+
+        # Czyszczenie sesji PyMOL
         cmd.delete('all')
     except Exception as e:
         logging.error(f"Error in generating visualization: {e}")
@@ -498,10 +513,11 @@ def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, recepto
 def set_visualization_and_focus():
     cmd.show('cartoon', 'all')
     cmd.bg_color('white')
-    cmd.orient()
-    cmd.zoom('all', buffer=1)
-    cmd.clip('near', -10)
-    cmd.clip('far', 10)
+    cmd.center('ligand')  # Centring on the ligand
+    cmd.zoom('ligand', buffer=3.0)  # Zoom in on the ligand 
+    # Deleting clipping settings
+    # cmd.clip('near', -50)
+    # cmd.clip('far', 50)
     cmd.set('ray_trace_mode', 1)
     cmd.set('orthoscopic', 1)
     cmd.set('ray_trace_frames', 1)
@@ -509,6 +525,7 @@ def set_visualization_and_focus():
     cmd.set('ambient', 0.5)
     cmd.set('spec_reflect', 0.5)
     cmd.set('specular', 1)
+
 
 def write_mol_to_pdb(mol, pdb_filename):
     try:
@@ -558,10 +575,10 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         p2rank_csv = predictions_csv
         df_p2rank = pd.read_csv(p2rank_csv)
         df_p2rank.columns = df_p2rank.columns.str.strip()
-        df_p2rank = df_p2rank.map(lambda x: x.strip() if isinstance(x, str) else x)
+        df_p2rank = df_p2rank.applymap(lambda x: x.strip() if isinstance(x, str) else x)
         df_p2rank['score'] = df_p2rank['score'].astype(float).map("{:.2f}".format)
         df_p2rank['probability'] = df_p2rank['probability'].astype(float).map("{:.2f}".format)
-
+    
         with open(html_file, 'w', encoding='utf-8') as hf:
             hf.write('<html>\n')
             hf.write('<head>\n')
@@ -575,7 +592,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('.probability { background-color: #ffecd9; } /* Pastel orange */\n')
             hf.write('.docking-energy { background-color: #dfffe0; } /* Pastel green */\n')  # Add pastel green styling
             # Style for the "Docking Results" column in the first table
-            hf.write('td:nth-child(5), th:nth-child(5) {\n')
+            hf.write('td:nth-child(6), th:nth-child(6) {\n')
             hf.write('  max-width: 200px;\n')  # Maximum width
             hf.write('  word-wrap: break-word;\n')  # Word wrapping
             hf.write('  white-space: normal;\n')  # Normal white space
@@ -589,14 +606,17 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('}\n')
             # Style for the "residue_ids" column in the second table
             hf.write('.p2rank-table td:nth-child(5), .p2rank-table th:nth-child(5) {\n')
-            hf.write('  padding: 15px;\n')  # Inner margin for the last column
-            hf.write('  text-align: left;\n')  # Optionally: align text to the left
+            hf.write('  max-width: 400px;\n')  # Ograniczenie szerokości kolumny
+            hf.write('  word-wrap: break-word;\n')  # Zawijanie tekstu w kolumnie
+            hf.write('  white-space: normal;\n')  # Normalne białe znaki dla zawijania
+            hf.write('  padding: 15px;\n')  # Wewnętrzne marginesy
+            hf.write('  text-align: left;\n')  # Opcjonalnie: wyrównanie tekstu do lewej
             hf.write('}\n')
             hf.write('</style>\n')
-
+    
             hf.write('</head>\n')
             hf.write('<body>\n')
-
+    
             # Header for the docking results table
             receptor_pdbqt = os.path.basename(receptor_pdbqt)
             header_text = f'Docking results for receptor with PDB code: <span style="color: red;">{receptor_name}</span></br>using structures from file: <span style="color: navy;">{ligands_file}</span></br>'
@@ -610,10 +630,11 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             
             # First table: Docking results
             hf.write('<table>\n')
-            hf.write('<tr><th>Number</th><th>Compound Name</th><th>Structure</th><th class="docking-energy">Docking Energy<br/>(kcal/mol)</th><th>Docking Results</th></tr>\n')
+            hf.write('<tr><th>Number</th><th>Compound Name</th><th>Structure</th><th>Docking Image</th><th class="docking-energy">Docking Energy<br/>(kcal/mol)</th><th>Docking Results</th></tr>\n')
             for idx, result in enumerate(ligand_results, start=1):
                 name = result['name']
                 image_path = os.path.relpath(result['image'], os.path.dirname(html_file))
+                docking_image_path = os.path.relpath(result['docking_image'], os.path.dirname(html_file))
                 affinity = result['affinity']
                 if affinity is not None:
                     affinity_str = f"{affinity:.2f}"
@@ -623,26 +644,28 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                 output_pdbqt_path = os.path.relpath(result['output_pdbqt'], os.path.dirname(html_file))
                 link_text = os.path.basename(result['output_pdbqt'])
                 hf.write('<tr>\n')
-                hf.write(f'<td>{idx}</td>\n')
-                hf.write(f'<td>{name}</td>\n')
-                hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n')
-                hf.write(f'<td class="docking-energy">{affinity_str}</td>\n')  # Add class here
-                hf.write(f'<td><a href="{output_pdbqt_path}" download="{link_text}" type="application/octet-stream">{link_text}</a></td>\n')
+                hf.write(f'<td>{idx}</td>\n')  # 1st column
+                hf.write(f'<td>{name}</td>\n')  # 2nd column
+                hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n')  # 3rd column
+                # New column for docking image (4th column)
+                hf.write(f'<td><a href="{docking_image_path}" target="_blank"><img src="{docking_image_path}" alt="Docking Image" style="max-width: 150px; max-height: 150px;"></a></td>\n')
+                hf.write(f'<td class="docking-energy">{affinity_str}</td>\n')  # 5th column
+                hf.write(f'<td><a href="{output_pdbqt_path}" download="{link_text}" type="application/octet-stream">{link_text}</a></td>\n')  # 6th column
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
-
+    
             # Link to detailed results
             results_file = f"{receptor_name}_results.txt"
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(f'<a href="{results_file}" target="_blank">Detailed results for each compound (All docking poses). CLICK</a>\n')
             hf.write('</p>\n')
             hf.write('</br></br>')
-
+    
             # Header for the table with P2RANK data
             p2rank_header = f'P2RANK: identified docking pockets for receptor with PDB code: {receptor_name}'
             hf.write(f'<h3 style="text-align: center; margin-top: 20px;">{p2rank_header}</h3>\n')
-
+    
             # Second table: P2RANK data
             hf.write('<table class="p2rank-table">\n')  # Added class "p2rank-table"
             hf.write('<tr>')
@@ -665,16 +688,16 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(f'<a href="{residues_csv_file}" target="_blank">Detailed information about individual amino acids </br>and their involvement in docking pockets. CLICK</a>\n')
             hf.write('</p>\n')
-
+    
             hf.write('</br></br>')
-
+    
             # Author information at the end
             hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
             hf.write('Docking system based on <b>AutoDock Vina v.1.2.5</b> and <b>P2RANK v.2.4.2</b><br/>\n')
             hf.write('<b>Author:</b> Arkadiusz Leniak <b>email:</b> arkadiusz.leniak@gmail.com<br/>\n')
             hf.write('<b>github:</b> <a href="https://github.com/Prospero1988/AutoDock_vina_pipeline">https://github.com/Prospero1988/AutoDock_vina_pipeline</a>\n')
             hf.write('</p>\n')
-
+    
             hf.write('</body>\n')
             hf.write('</html>\n')
         logging.info(f"HTML results file generated: {html_file}")
@@ -682,6 +705,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         logging.error(f"Error in generating HTML results: {e}")
         print(f"Error in generating HTML results: {e}")
         raise
+
 
 if __name__ == "__main__":
     main()
