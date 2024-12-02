@@ -514,7 +514,9 @@ def set_visualization_and_focus():
     cmd.show('cartoon', 'all')
     cmd.bg_color('white')
     cmd.center('ligand')  # Centring on the ligand
-    cmd.zoom('ligand', buffer=3.0)  # Zoom in on the ligand 
+    cmd.zoom('ligand', buffer=1.0)  # Zoom in on the ligand 
+    cmd.move('z', -30)  # Odsuń kamerę o 10 jednostek w osi Z
+
     # Deleting clipping settings
     # cmd.clip('near', -50)
     # cmd.clip('far', 50)
