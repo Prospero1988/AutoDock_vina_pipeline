@@ -187,4 +187,4 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 - Ensure all dependencies are correctly installed and configured.
 - Follow the user manual (`User_Guide_Docking_System_ENG.html`) for detailed steps.
 
-For more details, refer to the [Installation Guide](Installation_Guide_ENG.html).
+For more details, refer to the [Installation Guide](manuals/Installation_Guide_ENG.html).
