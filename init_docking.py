@@ -482,40 +482,96 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
 @logger_decorator
 def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, receptor_name, ligand_name):
     try:
-        # Wczytanie struktur do PyMOL
+        # Load structures into PyMOL from PDBQT files (containing charges)
         cmd.load(receptor_pdbqt, 'receptor')
         cmd.load(output_pdbqt, 'ligand')
         
-        # Kolorowanie receptora i ligandu
+        # Add hydrogen atoms (if not present)
+        cmd.h_add('receptor')
+        cmd.h_add('ligand')
+        
+        # Color the receptor and ligand
         cmd.color('cyan', 'receptor')
         cmd.color('red', 'ligand')
-
-        # Ustawienie reprezentacji
+    
+        # Set representations
         cmd.show('cartoon', 'receptor')
         cmd.show('sticks', 'ligand')
-
-        # Dostosowanie wizualizacji
+    
+        # Hide hydrogen atoms in the visualization
+        cmd.hide('sticks', '(elem H)')
+    
+        # Define donors and acceptors in the receptor and ligand
+        cmd.select('donors_receptor', '(receptor) and (elem N,O) and (neighbor hydro)')
+        cmd.select('acceptors_receptor', '(receptor) and (elem N,O) and (not neighbor hydro)')
+        cmd.select('donors_ligand', '(ligand) and (elem N,O) and (neighbor hydro)')
+        cmd.select('acceptors_ligand', '(ligand) and (elem N,O) and (not neighbor hydro)')
+    
+        # Set cutoff distance for hydrogen bonds (in Ångströms)
+        hbond_cutoff = 3.5  # You can adjust this value as needed
+    
+        # Find and display hydrogen bonds between the ligand and receptor
+        # Donors from ligand to acceptors in receptor
+        cmd.distance('hbonds', 'donors_ligand', 'acceptors_receptor', hbond_cutoff)
+    
+        # Donors from receptor to acceptors in ligand
+        cmd.distance('hbonds', 'donors_receptor', 'acceptors_ligand', hbond_cutoff)
+    
+        # Hide distance labels
+        cmd.set('label_size', 0)
+        cmd.hide('labels')
+    
+        # **Add visualization of salt bridges using charges from PDBQT**
+    
+        # Define positively charged residues in the receptor (e.g., Lys, Arg)
+        cmd.select('positive_residues_receptor', 'receptor and ((resn LYS and name NZ) or (resn ARG and name NH1+NH2+NE))')
+    
+        # Define negatively charged residues in the receptor (e.g., Asp, Glu)
+        cmd.select('negative_residues_receptor', 'receptor and ((resn ASP and name OD1+OD2) or (resn GLU and name OE1+OE2))')
+    
+        # Define charged atoms in the ligand based on charges from PDBQT
+        cmd.select('positive_atoms_ligand', 'ligand and partial_charge > 0.2')
+        cmd.select('negative_atoms_ligand', 'ligand and partial_charge < -0.2')
+    
+        # Set cutoff distance for salt bridges (in Ångströms)
+        salt_bridge_cutoff = 4.0  # You can adjust this value as needed
+    
+        # Find and display salt bridges between the ligand and receptor
+        # Positively charged atoms from ligand to negatively charged residues in receptor
+        cmd.distance('salt_bridges', 'positive_atoms_ligand', 'negative_residues_receptor', salt_bridge_cutoff)
+    
+        # Negatively charged atoms from ligand to positively charged residues in receptor
+        cmd.distance('salt_bridges', 'negative_atoms_ligand', 'positive_residues_receptor', salt_bridge_cutoff)
+    
+        # Set color and style for salt bridges
+        cmd.set_color('salt_bridge_color', [1.0, 0.5, 0.0])  # Orange color
+        cmd.color('salt_bridge_color', 'salt_bridges')
+        cmd.set('dash_width', 4.0, 'salt_bridges')  # Thicker lines
+        cmd.set('dash_gap', 0.0, 'salt_bridges')    # Continuous lines
+    
+        # Adjust visualization and set the camera
         set_visualization_and_focus()
-
-        # Zapisanie obrazu jako PNG
+    
+        # Save the image as PNG
         image_path = os.path.join(output_folder, f"{receptor_name}_{ligand_name}_docking.png")
         cmd.ray(1920, 1080)
         cmd.png(image_path, width=1920, height=1080, dpi=300)
         logging.info(f"Visualization saved: {image_path}")
-
-        # Czyszczenie sesji PyMOL
+    
+        # Clear the PyMOL session
         cmd.delete('all')
     except Exception as e:
         logging.error(f"Error in generating visualization: {e}")
         print(f"Error in generating visualization: {e}")
         raise
 
+
 def set_visualization_and_focus():
     cmd.show('cartoon', 'all')
     cmd.bg_color('white')
     cmd.center('ligand')  # Centring on the ligand
     cmd.zoom('ligand', buffer=1.0)  # Zoom in on the ligand 
-    cmd.move('z', -30)  # Odsuń kamerę o 10 jednostek w osi Z
+    cmd.move('z', -50)  # Odsuń kamerę o 10 jednostek w osi Z
 
     # Deleting clipping settings
     # cmd.clip('near', -50)
