@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 This script automates the process of docking multiple ligands to multiple receptor proteins using AutoDock Vina.
-It reads receptors PDB ID from a CSV file, downloads each receptor structure from the PDB database, prepares them for docking, and processes multiple ligands from an SDF file.
+It reads receptors PDB ID from a CSV file, downloads each receptor structure from the PDB database, prepares them for docking, and processes multiple ligands from an SDF or MOL2 file.
 
 Technologies used:
 - Biopython for handling PDB files and interacting with the PDB database.
@@ -17,8 +17,8 @@ python dock.py --pdb_ids receptors.csv --ligands ligand_file.sdf
 
 Arguments:
 
-- --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins, located in the ./receptors directory.
-- --ligands: The name of the SDF file containing ligands to dock, located in ./ligands directory.
+- --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins, located in ./receptors directory.
+- --ligands: The name of the SDF or MOL2 file containing ligands to dock, located in ./ligands directory.
 - --tol: Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).
 - --pckt: Pocket number to use from P2Rank predictions (default: 1).
 - --exhaust: Specifies how thorough the search should be for the best binding poses.
@@ -26,7 +26,7 @@ Arguments:
 - --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 3).
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
-be saved in ./PDB_ID/03_ligands_results/ligand_name_or_number.
+be saved in ./PDB_ID/02_ligands_results/ligand_name_or_number.
 
 Ensure that all required tools and libraries are installed and properly configured in your environment.
 """
@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import logging
 import re
+import tempfile
 
 from Bio import PDB
 from Bio.PDB import PDBList
@@ -81,7 +82,7 @@ def main():
     # Argument parsing
     parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands and receptors.")
     parser.add_argument('--pdb_ids', required=True, help='Name of the CSV file containing PDB IDs of receptor proteins, located in ./receptors.')
-    parser.add_argument('--ligands', required=True, help='Name of the SDF file containing ligands, located in ./ligands.')
+    parser.add_argument('--ligands', required=True, help='Name of the SDF or MOL2 file containing ligands, located in ./ligands.')
     parser.add_argument('--tol', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).')
     parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
     parser.add_argument('--exhaust', type=int, default=16, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).')
@@ -106,11 +107,67 @@ def main():
     else:
         logging.info(f"Ligand file found: {ligands_path}")
 
-    suppl = Chem.SDMolSupplier(ligands_path)
-    if not suppl:
-        raise ValueError(f"Could not read ligands from {ligands_path} or file is empty.")
+    molecules = []
+
+    if ligands_path.endswith(".sdf"):
+        logging.info("Detected SDF file. Reading ligands...")
+        suppl = Chem.SDMolSupplier(ligands_path)
+        if not suppl:
+            raise ValueError(f"Could not read ligands from {ligands_path} or file is empty.")
+        molecules = [mol for mol in suppl if mol is not None]
+
+    elif ligands_path.endswith(".mol2"):
+        logging.info("Detected MOL2 file. Converting to SDF...")
+        # Tworzenie tymczasowego pliku SDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.sdf') as tmp_sdf:
+            tmp_sdf_path = tmp_sdf.name
+
+        try:
+            # Konwersja MOL2 na SDF za pomocą Open Babel
+            conversion_command = [
+                OBABEL_PATH,
+                "-i", "mol2",
+                ligands_path,
+                "-o", "sdf",
+                "-O", tmp_sdf_path,
+                "--aromatic"
+            ]
+            subprocess.run(conversion_command, check=True)
+            logging.info(f"Converted MOL2 to SDF: {tmp_sdf_path}")
+
+            # Odczyt pliku SDF
+            suppl = Chem.SDMolSupplier(tmp_sdf_path)
+            if not suppl:
+                raise ValueError(f"Could not read ligands from {tmp_sdf_path} or file is empty.")
+            molecules = [mol for mol in suppl if mol is not None]
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error in converting MOL2 to SDF: {e}")
+            print(f"Error in converting MOL2 to SDF: {e}")
+            raise
+        finally:
+            # Usunięcie tymczasowego pliku SDF
+            if os.path.exists(tmp_sdf_path):
+                os.remove(tmp_sdf_path)
+                logging.info(f"Temporary SDF file removed: {tmp_sdf_path}")
+
     else:
-        logging.info(f"Number of ligands read: {len(suppl)}")
+        logging.error(f"Unsupported file format: {ligands_path}. Supported formats are .sdf and .mol2.")
+        raise ValueError(f"Unsupported file format: {ligands_path}. Please provide .sdf or .mol2 files.")
+
+    if not molecules:
+        logging.warning(f"No valid molecules found in {ligands_path}.")
+        raise ValueError(f"No valid molecules found in {ligands_path}.")
+    else:
+        logging.info(f"Number of valid molecules read: {len(molecules)}")
+
+    # Assign names to molecules with exception handling
+    for idx, mol in enumerate(molecules):
+        if mol.HasProp('_Name') and mol.GetProp('_Name').strip() and not all(c == '*' for c in mol.GetProp('_Name').strip()):
+            ligand_name = sanitize_ligand_name(mol.GetProp('_Name').strip())
+        else:
+            ligand_name = f"ligand_{idx + 1:03d}"  # Format: ligand_001, ligand_002, etc.
+            logging.info(f"Assigned default name to molecule {idx + 1}: {ligand_name}")
+        mol.SetProp('_Name', ligand_name)
 
     # Read PDB IDs from the CSV file
     if not os.path.exists(receptors_file_path):
@@ -137,12 +194,12 @@ def main():
         if not os.path.exists(receptor_folder):
             os.makedirs(receptor_folder, exist_ok=True)
 
-        # Creation of additional folder 02_ligands_PDBQT
+        # Creation of additional folder 03_ligands_PDBQT
         ligands_pdbqt_folder = os.path.join(receptor_folder, '03_ligands_PDBQT')
         os.makedirs(ligands_pdbqt_folder, exist_ok=True)
         logging.info(f"Created folder for ligands PDBQT: {ligands_pdbqt_folder}")
 
-        # Creation of additional folder 03_ligands_results
+        # Creation of additional folder 02_ligands_results
         ligands_results_folder = os.path.join(receptor_folder, '02_ligands_results')
         os.makedirs(ligands_results_folder, exist_ok=True)
         logging.info(f"Created folder for ligands results: {ligands_results_folder}")
@@ -186,12 +243,14 @@ def main():
             center_x, center_y, center_z, Size_x, Size_y, Size_z, predictions_csv = get_docking_box(output_dir, fixed_pdb, tol, pocket_number)
 
             with open(results_file, 'w') as rf:
-                for idx, mol in enumerate(suppl):
+                for idx, mol in enumerate(molecules):  # Iterate over 'molecules' list
                     if mol is None:
                         logging.warning(f"Skipping invalid molecule at index {idx}")
                         continue
-                    ligand_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"ligand_{idx}"
-                    # Placing ligands folders in 03_ligands_results
+
+                    ligand_name = mol.GetProp('_Name')  # Get the assigned ligand name
+
+                    # Placing ligands folders in 02_ligands_results
                     ligand_folder = os.path.join(ligands_results_folder, ligand_name)
                     os.makedirs(ligand_folder, exist_ok=True)
 
@@ -216,7 +275,7 @@ def main():
                                         Size_x, Size_y, Size_z,
                                         exhaustiveness, energy_range)
 
-                    # Copy PDBQT file after docking to folder 02_ligands_PDBQT
+                    # Copy PDBQT file after docking to folder 03_ligands_PDBQT
                     shutil.copy2(output_pdbqt, ligands_pdbqt_folder)
                     logging.info(f"Copied {output_pdbqt} to {ligands_pdbqt_folder}")
 
@@ -228,7 +287,7 @@ def main():
                     # Display information in the terminal after docking is complete
                     print(f'Ligand {ligand_name} docked successfully!')
 
-                    # Generate visualization 
+                    # Generate visualization
                     generate_visualizations(receptor_pdbqt, output_pdbqt, ligand_folder, receptor_name, ligand_name)
                     docking_image_path = os.path.join(ligand_folder, f"{receptor_name}_{ligand_name}_docking.png")
 
@@ -247,6 +306,7 @@ def main():
                         'docking_image': docking_image_path
                     })
 
+
             # Generate HTML results file
             html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
             generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, args.pckt, receptor_pdbqt)
@@ -262,6 +322,21 @@ def main():
 
         # Remove the file handler after processing each receptor
         logging.getLogger().removeHandler(file_handler)
+
+# Function to sanitize ligand names
+def sanitize_ligand_name(name):
+    """
+    Sanitize the ligand name by replacing invalid characters with underscores.
+    """
+    # Define a regex pattern for valid characters (alphanumeric and underscores)
+    valid_pattern = re.compile(r'[^A-Za-z0-9_-]')
+    sanitized_name = valid_pattern.sub('_', name)
+    # Additionally, remove leading/trailing underscores
+    sanitized_name = sanitized_name.strip('_')
+    # If the sanitized name is empty, assign a default name
+    if not sanitized_name:
+        sanitized_name = "ligand_unnamed"
+    return sanitized_name
 
 # Function definitions (outside of the main function and loops)
 
@@ -646,17 +721,17 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         p2rank_csv = predictions_csv
         df_p2rank = pd.read_csv(p2rank_csv)
         df_p2rank.columns = df_p2rank.columns.str.strip()
-        df_p2rank = df_p2rank.map(lambda x: x.strip() if isinstance(x, str) else x)
+        df_p2rank = df_p2rank.applymap(lambda x: x.strip() if isinstance(x, str) else x)
         df_p2rank['score'] = df_p2rank['score'].astype(float).map("{:.2f}".format)
         df_p2rank['probability'] = df_p2rank['probability'].astype(float).map("{:.2f}".format)
-    
-        # **Sort ligand_results by 'affinity' from lowest to highest**
+
+        # Sort ligand_results by 'affinity' from lowest to highest
         # Ligands with affinity=None will be placed at the end
         ligand_results_sorted = sorted(
             ligand_results,
             key=lambda x: (x['affinity'] is None, x['affinity'] if x['affinity'] is not None else float('inf'))
         )
-    
+
         with open(html_file, 'w', encoding='utf-8') as hf:
             hf.write('<html>\n')
             hf.write('<head>\n')
@@ -783,6 +858,20 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         logging.error(f"Error in generating HTML results: {e}")
         print(f"Error in generating HTML results: {e}")
         raise
+
+def sanitize_ligand_name(name):
+    """
+    Sanitize the ligand name by replacing invalid characters with underscores.
+    """
+    # Define a regex pattern for valid characters (alphanumeric and underscores)
+    valid_pattern = re.compile(r'[^A-Za-z0-9_-]')
+    sanitized_name = valid_pattern.sub('_', name)
+    # Additionally, remove leading/trailing underscores
+    sanitized_name = sanitized_name.strip('_')
+    # If the sanitized name is empty, assign a default name
+    if not sanitized_name:
+        sanitized_name = "ligand_unnamed"
+    return sanitized_name
 
 if __name__ == "__main__":
     main()
