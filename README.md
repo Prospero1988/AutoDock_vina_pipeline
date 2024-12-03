@@ -2,6 +2,8 @@
 
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
+![Docking results visualization](img/results.png "Visualization of docking results")
+
 ## Technologies Used
 - **Python 3.11**: Core scripting language.
 - **AutoDock Vina v1.2.5**: Molecular docking engine.
