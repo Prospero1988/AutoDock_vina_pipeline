@@ -8,7 +8,7 @@ If you have any problems with the installation or operation of the docking progr
 
 ## Output example
 
-In this repository there is a downloadable file [output_example.zip](output_example.zip) which contains an archive with a zipped sample output for the docking program.
+In this repository there is a downloadable file [[output_example.zip](output_example.zip)](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
 ## Results screenshots
 
