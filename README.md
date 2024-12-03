@@ -227,14 +227,6 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 
 For more details, refer to the [Installation Guide](manuals/Installation_Guide_ENG.html).
 
-# License
-
-[MIT](LICENSE)
-
-# Contact
-
-For any questions or support, please contact [your-email@example.com](mailto:your-email@example.com).
-
 # Acknowledgments
 
 - [AutoDock Vina](http://vina.scripps.edu/)
