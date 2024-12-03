@@ -1,5 +1,4 @@
-
-# AutoDock Vina pipeline with P2RANK for HTS docking
+# AutoDock Vina Pipeline with P2RANK for HTS Docking
 
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
@@ -31,8 +30,11 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 ### **1. Input Parsing**
 - The script accepts the following arguments:
   - `--pdb_ids`: A CSV file located in the `./receptors` directory, containing the PDB IDs of receptor proteins. Each ID corresponds to a unique protein structure available in the Protein Data Bank (PDB).
-  - `--ligands`: An SDF file located in the `./ligands` directory, containing one or more ligands for docking.
+  - `--ligands`: A ligand file located in the `./ligands` directory. Supported formats include **SDF** and **MOL2** files, allowing flexibility in ligand input.
   - Optional parameters like `--tol`, `--pckt`, `--exhaust`, and `--energy_range` define the docking box dimensions, pocket selection, search thoroughness, and energy range for pose scoring.
+
+- **Automatic Ligand Naming**:
+  - In cases where ligands in the input files lack explicit names, the script assigns them generic names in the format `ligand_001`, `ligand_002`, etc., ensuring consistent and organized output.
 
 ---
 
@@ -63,12 +65,17 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 ---
 
 ### **4. Ligand Preparation**
-- For each ligand in the provided SDF file:
-  - The ligand is converted to `.pdb` format using RDKit.
-  - Hydrogen atoms are added, and a 3D conformer is generated for the ligand.
-  - The `.pdb` file is converted to `.pdbqt` format required for docking using Open Babel.
+- For each ligand in the provided SDF or MOL2 file:
+  - **Format Handling**:
+    - The script automatically detects the file format (SDF or MOL2) and processes accordingly.
+  
+  - **Conversion and Processing**:
+    - The ligand is converted to `.pdb` format using RDKit.
+    - Hydrogen atoms are added, and a 3D conformer is generated for the ligand.
+    - The `.pdb` file is converted to `.pdbqt` format required for docking using Open Babel.
 
-- The prepared files are stored in subdirectories within the receptor's folder (e.g., `./8W88/aspirin.pdbqt`).
+- **Output Organization**:
+  - The prepared ligand files are stored in the `02_ligands_results` subdirectory within the receptor's folder (e.g., `./8W88/02_ligands_results/`).
 
 ---
 
@@ -78,38 +85,60 @@ The `init_docking.py` script automates the process of docking multiple ligands t
   - Parameters such as `--exhaust` (exhaustiveness) and `--energy_range` control the thoroughness and energy tolerance for pose scoring.
   - Docking results are saved in `.pdbqt` format, and key details (e.g., binding affinities) are extracted from the output.
 
+- **Post-Docking File Management**:
+  - All `.pdbqt` files for ligands after docking are collectively copied into the `03_ligands_PDBQT` folder, facilitating easy access without navigating through individual folders.
+
 ---
 
 ### **6. Visualization and Results Generation**
 - **Visualizations**:
   - PyMOL is used to generate visualizations of the best-docked ligand poses superimposed on the receptor structure. The images are saved as `.png` files.
 
-- **HTML Report**:
-  - The script creates an interactive HTML report for each receptor, summarizing:
-    - Key docking metrics (binding energies, pocket scores).
-    - Links to output files (e.g., `.pdbqt` and `.txt`).
-    - 2D and 3D visualizations of ligand-receptor complexes.
+- **HTML and CSV Reports**:
+  - **HTML Report**:
+    - The script creates an interactive HTML report for each receptor, summarizing:
+      - Key docking metrics (binding energies, pocket scores).
+      - Links to output files (e.g., `.pdbqt` and `.txt`).
+      - 2D and 3D visualizations of ligand-receptor complexes.
+  
+  - **CSV Summary**:
+    - In addition to the HTML report, a CSV summary file is generated containing:
+      - **Name**: Ligand name.
+      - **Affinity**: Binding affinity values.
+      - **SMILES**: Simplified molecular-input line-entry system representations of ligands.
+    - This CSV file provides a convenient overview of docking results for further analysis.
 
 ---
 
 ### **7. Outputs**
 - Each receptor has its dedicated directory containing:
+
   - **Processed Structures**:
     - `<PDB_ID>_dirty.pdb`: Raw receptor structure.
     - `<PDB_ID>_fixed.pdb`: Cleaned receptor structure.
     - `<PDB_ID>.pdbqt`: Receptor ready for docking.
+
   - **Docking Results**:
-    - `<PDB_ID>_results.txt`: Detailed docking logs.
-    - `<ligand_name>.pdbqt`: Best poses for each ligand.
-    - `<ligand_name>.svg`: 2D ligand structure images.
+    - `02_ligands_results/`:
+      - `<ligand_name>.pdbqt`: Prepared ligand.
+      - `<ligand_name>.svg`: 2D ligand structure images.
+    - `03_ligands_PDBQT/`:
+      - All docked ligand `.pdbqt` files copied here for easy access.
+
   - **Visualizations**:
     - `<PDB_ID>_<ligand_name>_docking.png`: 3D visualizations of docked complexes.
+
+  - **Reports**:
+    - `results_summary.html`: Interactive HTML report summarizing docking results.
+    - `results_summary.csv`: CSV file containing ligand name, affinity, and SMILES.
+
   - **P2Rank Predictions**:
     - `01_p2rank_output/<PDB_ID>_predictions.csv`: Binding site information.
 
 ---
 
 This modular pipeline ensures seamless handling of multiple receptors and ligands, providing users with comprehensive results for further analysis.
+
 ## Installation
 
 ### Full Installation (Fresh System)
@@ -139,24 +168,28 @@ Ensure the following tools are available in their respective paths:
 ## Usage
 
 ### SLURM Execution
-1. Prepare input files:
+1. **Prepare Input Files**:
    - Place receptor PDB IDs in a CSV file under `./receptors`.
-   - Place ligand structures in SDF format under `./ligands`.
+   - Place ligand structures in **SDF** or **MOL2** format under `./ligands`.
 
-2. Submit the job via SLURM:
+2. **Submit the Job via SLURM**:
     ```bash
     sbatch start_docking.sh
     ```
 
 ### Local Execution
-1. Activate the conda environment:
+1. **Activate the Conda Environment**:
     ```bash
     source ~/miniconda3/etc/profile.d/conda.sh
     conda activate auto_dock
     ```
-2. Run the Python script:
+2. **Run the Python Script**:
     ```bash
     python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf
+    ```
+   - To use a MOL2 file:
+    ```bash
+    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.mol2
     ```
 
 ## SLURM Configuration
@@ -166,21 +199,26 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 
 ## Input Parameters
 - `--pdb_ids`: CSV file with receptor PDB codes.
-- `--ligands`: SDF file containing ligands.
+- `--ligands`: SDF or MOL2 file containing ligands.
 - `--tol`: Docking box tolerance (Å, default: 0).
 - `--pckt`: Pocket number from P2Rank predictions (default: 1).
 - `--exhaust`: Docking thoroughness (default: 20).
 - `--energy_range`: Energy range for docking poses (default: 2 kcal/mol).
 
 ## Outputs
-1. Results organized by receptor:
-   - `receptor_name_results.txt`: Detailed docking results.
-   - `ligand_name.pdbqt`: Prepared ligand.
-   - `ligand_name.svg`: 2D ligand structure.
+1. **Results Organized by Receptor**:
+   - `02_ligands_results/`:
+     - `<ligand_name>.pdbqt`: Prepared ligand.
+     - `<ligand_name>.svg`: 2D ligand structure.
+   - `03_ligands_PDBQT/`:
+     - All docked ligand `.pdbqt` files copied here.
+   
+2. **Reports**:
+   - `results_summary.html`: Summarized docking results with interactive visualizations.
+   - `results_summary.csv`: CSV file containing ligand name, affinity, and SMILES.
 
-2. HTML Report:
-   - Summarized docking results.
-   - Interactive visualization links.
+3. **Visualizations**:
+   - `<PDB_ID>_<ligand_name>_docking.png`: 3D visualizations of docked complexes.
 
 ## Notes
 - The system works best with SLURM for distributed execution but can run locally.
@@ -188,3 +226,23 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 - Follow the user manual (`User_Guide_Docking_System_ENG.html`) for detailed steps.
 
 For more details, refer to the [Installation Guide](manuals/Installation_Guide_ENG.html).
+
+# License
+
+[MIT](LICENSE)
+
+# Contact
+
+For any questions or support, please contact [your-email@example.com](mailto:your-email@example.com).
+
+# Acknowledgments
+
+- [AutoDock Vina](http://vina.scripps.edu/)
+- [P2Rank](https://github.com/rdk/p2rank)
+- [RDKit](https://www.rdkit.org/)
+- [Open Babel](https://openbabel.org/)
+- [PyMOL](https://pymol.org/)
+
+---
+
+*This README was generated and updated with the assistance of ChatGPT.*
