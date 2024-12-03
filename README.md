@@ -2,6 +2,10 @@
 
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
+## Problems and support
+
+If you have any problems with the installation or operation of the docking program do not be shy and contact me. I will try my best to help you.
+
 ![Docking results visualization](img/results.png "Visualization of docking results")
 ![Docking results visualization](img/grid.png "Visualization of docking results")
 ![Docking results visualization](img/csv.png "Visualization of docking results")
