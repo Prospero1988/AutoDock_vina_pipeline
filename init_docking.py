@@ -39,6 +39,7 @@ import subprocess
 import logging
 import re
 import tempfile
+import csv  # Import csv module
 
 from Bio import PDB
 from Bio.PDB import PDBList
@@ -118,12 +119,12 @@ def main():
 
     elif ligands_path.endswith(".mol2"):
         logging.info("Detected MOL2 file. Converting to SDF...")
-        # Tworzenie tymczasowego pliku SDF
+        # Create a temporary SDF file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.sdf') as tmp_sdf:
             tmp_sdf_path = tmp_sdf.name
 
         try:
-            # Konwersja MOL2 na SDF za pomocą Open Babel
+            # Convert MOL2 to SDF using Open Babel
             conversion_command = [
                 OBABEL_PATH,
                 "-i", "mol2",
@@ -135,7 +136,7 @@ def main():
             subprocess.run(conversion_command, check=True)
             logging.info(f"Converted MOL2 to SDF: {tmp_sdf_path}")
 
-            # Odczyt pliku SDF
+            # Read the SDF file
             suppl = Chem.SDMolSupplier(tmp_sdf_path)
             if not suppl:
                 raise ValueError(f"Could not read ligands from {tmp_sdf_path} or file is empty.")
@@ -145,7 +146,7 @@ def main():
             print(f"Error in converting MOL2 to SDF: {e}")
             raise
         finally:
-            # Usunięcie tymczasowego pliku SDF
+            # Remove the temporary SDF file
             if os.path.exists(tmp_sdf_path):
                 os.remove(tmp_sdf_path)
                 logging.info(f"Temporary SDF file removed: {tmp_sdf_path}")
@@ -160,7 +161,8 @@ def main():
     else:
         logging.info(f"Number of valid molecules read: {len(molecules)}")
 
-    # Assign names to molecules with exception handling
+    # Assign names to molecules with exception handling and extract properties
+    ligand_data_list = []
     for idx, mol in enumerate(molecules):
         if mol.HasProp('_Name') and mol.GetProp('_Name').strip() and not all(c == '*' for c in mol.GetProp('_Name').strip()):
             ligand_name = sanitize_ligand_name(mol.GetProp('_Name').strip())
@@ -168,6 +170,26 @@ def main():
             ligand_name = f"ligand_{idx + 1:03d}"  # Format: ligand_001, ligand_002, etc.
             logging.info(f"Assigned default name to molecule {idx + 1}: {ligand_name}")
         mol.SetProp('_Name', ligand_name)
+
+        # Extract 'Code name' property if it exists
+        if mol.HasProp('Code name'):
+            code_name = mol.GetProp('Code name').strip()
+        else:
+            code_name = None
+
+        # Extract 'Product (SMILES)' property if it exists
+        if mol.HasProp('Product (SMILES)'):
+            smiles = mol.GetProp('Product (SMILES)').strip()
+        else:
+            # Generate SMILES code from mol
+            smiles = Chem.MolToSmiles(mol)
+
+        ligand_data_list.append({
+            'mol': mol,
+            'name': ligand_name,
+            'code_name': code_name,
+            'smiles': smiles
+        })
 
     # Read PDB IDs from the CSV file
     if not os.path.exists(receptors_file_path):
@@ -243,12 +265,15 @@ def main():
             center_x, center_y, center_z, Size_x, Size_y, Size_z, predictions_csv = get_docking_box(output_dir, fixed_pdb, tol, pocket_number)
 
             with open(results_file, 'w') as rf:
-                for idx, mol in enumerate(molecules):  # Iterate over 'molecules' list
-                    if mol is None:
-                        logging.warning(f"Skipping invalid molecule at index {idx}")
-                        continue
+                for ligand_data in ligand_data_list:
+                    mol = ligand_data['mol']
+                    ligand_name = ligand_data['name']
+                    code_name = ligand_data['code_name']
+                    smiles = ligand_data['smiles']
 
-                    ligand_name = mol.GetProp('_Name')  # Get the assigned ligand name
+                    if mol is None:
+                        logging.warning(f"Skipping invalid molecule: {ligand_name}")
+                        continue
 
                     # Placing ligands folders in 02_ligands_results
                     ligand_folder = os.path.join(ligands_results_folder, ligand_name)
@@ -303,13 +328,50 @@ def main():
                         'image': image_filename,
                         'affinity': affinity,
                         'output_pdbqt': output_pdbqt,
-                        'docking_image': docking_image_path
+                        'docking_image': docking_image_path,
+                        'smiles': smiles,
+                        'code_name': code_name
                     })
-
 
             # Generate HTML results file
             html_file = os.path.join(receptor_folder, f"{receptor_name}_results.html")
             generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, args.pckt, receptor_pdbqt)
+
+            # Generate CSV results file
+            csv_file = os.path.join(receptor_folder, f"{receptor_name}_results_in_CSV.csv")
+            try:
+                # Determine if any ligand has a code_name
+                include_code_name = any(ligand['code_name'] is not None for ligand in ligand_results)
+
+                # Open CSV file for writing
+                with open(csv_file, 'w', newline='', encoding='utf-8') as csvfile:
+                    fieldnames = ['name', 'affinity', 'smiles']
+                    if include_code_name:
+                        fieldnames.append('code_name')
+
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+
+                    for ligand in ligand_results:
+                        affinity = ligand['affinity']
+                        if affinity is not None:
+                            affinity_str = f"{affinity:.2f}"
+                        else:
+                            affinity_str = ''
+                        row = {
+                            'name': ligand['name'],
+                            'affinity': affinity_str,
+                            'smiles': ligand['smiles'] if ligand['smiles'] else ''
+                        }
+                        if include_code_name:
+                            row['code_name'] = ligand['code_name'] if ligand['code_name'] else ''
+                        writer.writerow(row)
+
+                logging.info(f"CSV results file generated: {csv_file}")
+            except Exception as e:
+                logging.error(f"Error in generating CSV results: {e}")
+                print(f"Error in generating CSV results: {e}")
+                raise
 
             print(f'Results HTML file generated: {html_file}')
 
@@ -657,10 +719,10 @@ def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, recepto
 def set_visualization_and_focus():
     cmd.show('cartoon', 'all')
     cmd.bg_color('white')
-    cmd.center('ligand')  # Centring on the ligand
+    cmd.center('ligand')  # Centering on the ligand
     cmd.zoom('ligand', buffer=1.0)  # Zoom in on the ligand 
-    cmd.move('z', -50)  # Odsuń kamerę o 50 jednostek w osi Z
-
+    cmd.move('z', -50)  # Move camera along the Z-axis
+    
     # Deleting clipping settings
     # cmd.clip('near', -50)
     # cmd.clip('far', 50)
