@@ -3,6 +3,8 @@
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
 ![Docking results visualization](img/results.png "Visualization of docking results")
+![Docking results visualization](img/grid.png "Visualization of docking results")
+![Docking results visualization](img/csv.png "Visualization of docking results")
 
 ## Technologies Used
 - **Python 3.11**: Core scripting language.
@@ -33,7 +35,7 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 - The script accepts the following arguments:
   - `--pdb_ids`: A CSV file located in the `./receptors` directory, containing the PDB IDs of receptor proteins. Each ID corresponds to a unique protein structure available in the Protein Data Bank (PDB).
   - `--ligands`: A ligand file located in the `./ligands` directory. Supported formats include **SDF** and **MOL2** files, allowing flexibility in ligand input.
-  - Optional parameters like `--tol`, `--pckt`, `--exhaust`, and `--energy_range` define the docking box dimensions, pocket selection, search thoroughness, and energy range for pose scoring.
+  - Optional parameters like `--tol_x`, `--tol_y`, `--tol_z`, `--pckt`, `--exhaust`, and `--energy_range` define the docking box dimensions, pocket selection, search thoroughness, and energy range for pose scoring.
 
 - **Automatic Ligand Naming**:
   - In cases where ligands in the input files lack explicit names, the script assigns them generic names in the format `ligand_001`, `ligand_002`, etc., ensuring consistent and organized output.
@@ -62,7 +64,7 @@ The `init_docking.py` script automates the process of docking multiple ligands t
   - The predictions are saved in a folder named `01_p2rank_output` within the receptor's directory.
   - A CSV file (`<PDB_ID>_predictions.csv`) lists each pocket's coordinates, size, and scores.
 
-- The selected pocket (based on the `--pckt` argument) is used to define the docking box dimensions. This includes the center coordinates (`center_x`, `center_y`, `center_z`) and sizes (`size_x`, `size_y`, `size_z`) with an optional tolerance (`--tol`).
+- The selected pocket (based on the `--pckt` argument) is used to define the docking box dimensions. This includes the center coordinates (`center_x`, `center_y`, `center_z`) and sizes (`size_x`, `size_y`, `size_z`) with optional tolerances (`--tol_x`, `--tol_y`, `--tol_z`) for each axis.
 
 ---
 
@@ -94,7 +96,10 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 
 ### **6. Visualization and Results Generation**
 - **Visualizations**:
-  - PyMOL is used to generate visualizations of the best-docked ligand poses superimposed on the receptor structure. The images are saved as `.png` files.
+  - PyMOL is used to generate visualizations of the best-docked ligand poses superimposed on the receptor structure.
+    - The visualizations now include the docking grid (box) and XYZ axes for better spatial orientation.
+    - Both high-resolution images (`.png`) and PyMOL session files (`.pse`) are saved for each docking result.
+    - The PyMOL session files include the docking grid and XYZ axes, allowing users to explore the docking results interactively within PyMOL.
 
 - **HTML and CSV Reports**:
   - **HTML Report**:
@@ -102,7 +107,8 @@ The `init_docking.py` script automates the process of docking multiple ligands t
       - Key docking metrics (binding energies, pocket scores).
       - Links to output files (e.g., `.pdbqt` and `.txt`).
       - 2D and 3D visualizations of ligand-receptor complexes.
-  
+      - **New**: An additional column with links to the PyMOL session files (`.pse`), enabling users to open and manipulate the docking results directly in PyMOL.
+
   - **CSV Summary**:
     - In addition to the HTML report, a CSV summary file is generated containing:
       - **Name**: Ligand name.
@@ -124,15 +130,16 @@ The `init_docking.py` script automates the process of docking multiple ligands t
     - `02_ligands_results/`:
       - `<ligand_name>.pdbqt`: Prepared ligand.
       - `<ligand_name>.svg`: 2D ligand structure images.
+      - `<PDB_ID>_<ligand_name>_docking.pse`: PyMOL session files including the docking grid and XYZ axes.
     - `03_ligands_PDBQT/`:
       - All docked ligand `.pdbqt` files copied here for easy access.
 
   - **Visualizations**:
-    - `<PDB_ID>_<ligand_name>_docking.png`: 3D visualizations of docked complexes.
+    - `<PDB_ID>_<ligand_name>_docking.png`: High-resolution 3D visualizations of docked complexes.
 
   - **Reports**:
-    - `results_summary.html`: Interactive HTML report summarizing docking results.
-    - `results_summary.csv`: CSV file containing ligand name, affinity, and SMILES.
+    - `<PDB_ID>_results.html`: Interactive HTML report summarizing docking results, including links to PyMOL session files.
+    - `<PDB_ID>_results_in_CSV.csv`: CSV file containing ligand name, affinity, and SMILES.
 
   - **P2Rank Predictions**:
     - `01_p2rank_output/<PDB_ID>_predictions.csv`: Binding site information.
@@ -187,12 +194,14 @@ Ensure the following tools are available in their respective paths:
     ```
 2. **Run the Python Script**:
     ```bash
-    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf
+    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf --tol_x 5 --tol_y 5 --tol_z 5
     ```
    - To use a MOL2 file:
     ```bash
-    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.mol2
+    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.mol2 --tol_x 5 --tol_y 5 --tol_z 5
     ```
+
+- **Note**: The `--tol_x`, `--tol_y`, and `--tol_z` arguments allow independent control over the expansion of the docking box along the X, Y, and Z axes, respectively.
 
 ## SLURM Configuration
 The repository includes a sample SLURM script (`start_docking.sh`) optimized for the docking pipeline. Key configurations include:
@@ -202,7 +211,7 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 ## Input Parameters
 - `--pdb_ids`: CSV file with receptor PDB codes.
 - `--ligands`: SDF or MOL2 file containing ligands.
-- `--tol`: Docking box tolerance (Å, default: 0).
+- `--tol_x`, `--tol_y`, `--tol_z`: Docking box tolerances in Ångströms to expand the docking pocket dimensions along the X, Y, and Z axes respectively (default: 0 for each).
 - `--pckt`: Pocket number from P2Rank predictions (default: 1).
 - `--exhaust`: Docking thoroughness (default: 20).
 - `--energy_range`: Energy range for docking poses (default: 2 kcal/mol).
@@ -212,19 +221,23 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
    - `02_ligands_results/`:
      - `<ligand_name>.pdbqt`: Prepared ligand.
      - `<ligand_name>.svg`: 2D ligand structure.
+     - `<PDB_ID>_<ligand_name>_docking.pse`: PyMOL session files including the docking grid and XYZ axes.
    - `03_ligands_PDBQT/`:
      - All docked ligand `.pdbqt` files copied here.
    
 2. **Reports**:
-   - `results_summary.html`: Summarized docking results with interactive visualizations.
-   - `results_summary.csv`: CSV file containing ligand name, affinity, and SMILES.
+   - `<PDB_ID>_results.html`: Summarized docking results with interactive visualizations and links to PyMOL session files.
+   - `<PDB_ID>_results_in_CSV.csv`: CSV file containing ligand name, affinity, and SMILES.
 
 3. **Visualizations**:
-   - `<PDB_ID>_<ligand_name>_docking.png`: 3D visualizations of docked complexes.
+   - `<PDB_ID>_<ligand_name>_docking.png`: High-resolution 3D visualizations of docked complexes.
 
 ## Notes
 - The system works best with SLURM for distributed execution but can run locally.
 - Ensure all dependencies are correctly installed and configured.
+- The visualizations now include the docking grid and XYZ axes for improved spatial orientation.
+- PyMOL session files are provided for interactive exploration of docking results.
+- The single `--tol` argument has been replaced with three independent arguments `--tol_x`, `--tol_y`, and `--tol_z` for finer control over the docking box dimensions.
 - Follow the user manual (`User_Guide_Docking_System_ENG.html`) for detailed steps.
 
 For more details, refer to the [Installation Guide](manuals/Installation_Guide_ENG.html).
@@ -240,3 +253,5 @@ For more details, refer to the [Installation Guide](manuals/Installation_Guide_E
 ---
 
 *This README was generated and updated with the assistance of ChatGPT.*
+
+---
