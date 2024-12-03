@@ -89,7 +89,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate auto_dock
 
 # Run Python script
-python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 20 --energy_range 2</code></pre>
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
             </li>
             <li><strong>Modifying parameters:</strong>
                 <ul>
@@ -100,8 +100,8 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
                             <li><code>--ligands</code>: name of the SDF file with ligands for docking.</li>
                             <li><code>--tol</code>: an integer (can be negative; in that case, enclose it in quotes, e.g., <code>'-1'</code>) that increases or decreases the docking grid size in all three dimensions (in angstroms).</li>
                             <li><code>--pckt</code>: an integer from 1 to the number of pockets calculated by P2RANK. Specifies which pocket will be used for docking.</li>
-                            <li><code>--exhaust</code>: the <em>exhaustiveness</em> parameter for AutoDock Vina; default value is 20. More information can be found in the AutoDock Vina documentation.</li>
-                            <li><code>--energy_range</code>: parameter controlling the energy range during docking; default value is 2. A higher value (e.g., 3) allows for greater ligand flexibility.</li>
+                            <li><code>--exhaust</code>: the <em>exhaustiveness</em> parameter for AutoDock Vina; default value is 16. More information can be found in the AutoDock Vina documentation.</li>
+                            <li><code>--energy_range</code>: parameter controlling the energy range during docking; default value is 3. A higher value (e.g., 4) allows for greater ligand flexibility. Lower (e.g.2) locks more rigid docking.</li>
                         </ul>
                     </li>
                 </ul>
@@ -180,6 +180,7 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
         <ul>
             <li>The results are located in the project directory, e.g., <code>TAAR1_trial_01</code>.</li>
             <li>Subdirectories for individual receptors are created in the main directory.</li>
+            <li>All PDBQT files for ligands are further grouped in the <code>02_ligands_PDBQT</code> folder.</li>
         </ul>
     </li>
     <li>
@@ -211,7 +212,7 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
     <li>
         <strong>Ligand docking results:</strong>
         <ul>
-            <li>The results for individual ligands are located in the receptor subdirectories. For example, for the ligand aspirin and receptor <code>8W88</code>:
+            <li>The results for individual ligands are located in the receptor subdirectories in <code>03_ligands_results</code> directory. For example, for the ligand aspirin and receptor <code>8W88</code>:
                 <ul>
                     <li><code>8W88_aspirin.pdbqt</code>: all docking positions for the ligand.</li>
                     <li><code>8W88_aspirin_docking.png</code>: image with the best-docked pose of the ligand.</li>

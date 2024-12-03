@@ -18,15 +18,15 @@ python dock.py --pdb_ids receptors.csv --ligands ligand_file.sdf
 Arguments:
 
 - --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins, located in the ./receptors directory.
-- --ligands: The name of the SDF file containing ligands to dock, located in the ./ligands directory.
+- --ligands: The name of the SDF file containing ligands to dock, located in ./ligands directory.
 - --tol: Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).
 - --pckt: Pocket number to use from P2Rank predictions (default: 1).
 - --exhaust: Specifies how thorough the search should be for the best binding poses.
-              Higher values increase precision but require more computation time (default: 20).
-- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 2).
+              Higher values increase precision but require more computation time (default: 16).
+- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 3).
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
-be saved in ./PDB_ID/ligand_name_or_number.
+be saved in ./PDB_ID/03_ligands_results/ligand_name_or_number.
 
 Ensure that all required tools and libraries are installed and properly configured in your environment.
 """
@@ -84,8 +84,8 @@ def main():
     parser.add_argument('--ligands', required=True, help='Name of the SDF file containing ligands, located in ./ligands.')
     parser.add_argument('--tol', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).')
     parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
-    parser.add_argument('--exhaust', type=int, default=20, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 20).')
-    parser.add_argument('--energy_range', type=int, default=2, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 2).')
+    parser.add_argument('--exhaust', type=int, default=16, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).')
+    parser.add_argument('--energy_range', type=int, default=3, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 3).')
 
     args = parser.parse_args()
 
@@ -137,6 +137,16 @@ def main():
         if not os.path.exists(receptor_folder):
             os.makedirs(receptor_folder, exist_ok=True)
 
+        # Creation of additional folder 02_ligands_PDBQT
+        ligands_pdbqt_folder = os.path.join(receptor_folder, '03_ligands_PDBQT')
+        os.makedirs(ligands_pdbqt_folder, exist_ok=True)
+        logging.info(f"Created folder for ligands PDBQT: {ligands_pdbqt_folder}")
+
+        # Creation of additional folder 03_ligands_results
+        ligands_results_folder = os.path.join(receptor_folder, '02_ligands_results')
+        os.makedirs(ligands_results_folder, exist_ok=True)
+        logging.info(f"Created folder for ligands results: {ligands_results_folder}")
+
         # Set up logging for this receptor
         log_file = os.path.join(receptor_folder, f"{receptor_name}_console_output.log")
         file_handler = logging.FileHandler(log_file)
@@ -181,7 +191,8 @@ def main():
                         logging.warning(f"Skipping invalid molecule at index {idx}")
                         continue
                     ligand_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"ligand_{idx}"
-                    ligand_folder = os.path.join(receptor_folder, ligand_name)
+                    # Placing ligands folders in 03_ligands_results
+                    ligand_folder = os.path.join(ligands_results_folder, ligand_name)
                     os.makedirs(ligand_folder, exist_ok=True)
 
                     ligand_pdb = os.path.join(ligand_folder, f"{ligand_name}.pdb")
@@ -204,6 +215,10 @@ def main():
                                         center_x, center_y, center_z,
                                         Size_x, Size_y, Size_z,
                                         exhaustiveness, energy_range)
+
+                    # Copy PDBQT file after docking to folder 02_ligands_PDBQT
+                    shutil.copy2(output_pdbqt, ligands_pdbqt_folder)
+                    logging.info(f"Copied {output_pdbqt} to {ligands_pdbqt_folder}")
 
                     # Save vina output to results file
                     rf.write(f"Ligand: {ligand_name}\n")
@@ -442,7 +457,6 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
             '--size_z', str(size_z),
             '--exhaustiveness', str(exhaustiveness),
             '--seed', '1988',  # Optionally, to have reproducible results
-
         ]
 
         # Call Vina without capturing the output
@@ -565,13 +579,12 @@ def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, recepto
         print(f"Error in generating visualization: {e}")
         raise
 
-
 def set_visualization_and_focus():
     cmd.show('cartoon', 'all')
     cmd.bg_color('white')
     cmd.center('ligand')  # Centring on the ligand
     cmd.zoom('ligand', buffer=1.0)  # Zoom in on the ligand 
-    cmd.move('z', -50)  # Odsuń kamerę o 10 jednostek w osi Z
+    cmd.move('z', -50)  # Odsuń kamerę o 50 jednostek w osi Z
 
     # Deleting clipping settings
     # cmd.clip('near', -50)
@@ -583,7 +596,6 @@ def set_visualization_and_focus():
     cmd.set('ambient', 0.5)
     cmd.set('spec_reflect', 0.5)
     cmd.set('specular', 1)
-
 
 def write_mol_to_pdb(mol, pdb_filename):
     try:
@@ -627,9 +639,10 @@ def draw_molecule_to_file(mol, image_filename):
         print(f"Error in drawing molecule image: {e}")
         raise
 
+@logger_decorator
 def generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, pckt, receptor_pdbqt):
     try:
-        # Load data from P2RANK and clean whitespace
+        # Load data from P2Rank and clean whitespace
         p2rank_csv = predictions_csv
         df_p2rank = pd.read_csv(p2rank_csv)
         df_p2rank.columns = df_p2rank.columns.str.strip()
@@ -678,10 +691,10 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('  text-align: left;\n')  # Optional: align text to the left
             hf.write('}\n')
             hf.write('</style>\n')
-    
+
             hf.write('</head>\n')
             hf.write('<body>\n')
-    
+
             # Header for the docking results table
             receptor_pdbqt = os.path.basename(receptor_pdbqt)
             header_text = f'Docking results for receptor with PDB code: <span style="color: red;">{receptor_name}</span></br>using structures from file: <span style="color: navy;">{ligands_file}</span></br>'
@@ -692,7 +705,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write(f'<a href="{receptor_pdbqt}" download="receptor_structure.pdbqt" type="application/octet-stream">Receptor structure (file .PDBQT). DOWNLOAD</a>')
             hf.write('</div>')
             hf.write('</br>')
-            
+
             # First table: Docking results (sorted by Docking Energy)
             hf.write('<table>\n')
             hf.write('<tr><th>Number</th><th>Compound Name</th><th>Structure</th><th>Docking Image</th><th class="docking-energy">Docking Energy<br/>(kcal/mol)</th><th>Docking Results</th></tr>\n')
@@ -719,18 +732,18 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
-    
+
             # Link to detailed results
             results_file = f"{receptor_name}_results.txt"
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(f'<a href="{results_file}" target="_blank">Detailed results for each compound (All docking poses). CLICK</a>\n')
             hf.write('</p>\n')
             hf.write('</br></br>')
-    
-            # Header for the table with P2RANK data
+
+            # Header for the table with P2Rank data
             p2rank_header = f'P2RANK: identified docking pockets for receptor with PDB code: {receptor_name}'
             hf.write(f'<h3 style="text-align: center; margin-top: 20px;">{p2rank_header}</h3>\n')
-    
+
             # Second table: P2RANK data
             hf.write('<table class="p2rank-table">\n')  # Added class "p2rank-table"
             hf.write('<tr>')
@@ -753,16 +766,16 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(f'<a href="{residues_csv_file}" target="_blank">Detailed information about individual amino acids </br>and their involvement in docking pockets. CLICK</a>\n')
             hf.write('</p>\n')
-    
+
             hf.write('</br></br>')
-    
+
             # Author information at the end
             hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
             hf.write('Docking system based on <b>AutoDock Vina v.1.2.5</b> and <b>P2RANK v.2.4.2</b><br/>\n')
             hf.write('<b>Author:</b> Arkadiusz Leniak <b>email:</b> arkadiusz.leniak@gmail.com<br/>\n')
             hf.write('<b>github:</b> <a href="https://github.com/Prospero1988/AutoDock_vina_pipeline">https://github.com/Prospero1988/AutoDock_vina_pipeline</a>\n')
             hf.write('</p>\n')
-    
+
             hf.write('</body>\n')
             hf.write('</html>\n')
         logging.info(f"HTML results file generated: {html_file}")
@@ -770,7 +783,6 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         logging.error(f"Error in generating HTML results: {e}")
         print(f"Error in generating HTML results: {e}")
         raise
-
 
 if __name__ == "__main__":
     main()

@@ -14,6 +14,7 @@ rm miniconda.sh
 export PATH="$HOME/miniconda/bin:$PATH"
 echo "source \$HOME/miniconda/etc/profile.d/conda.sh" >> ~/.bashrc
 source $HOME/miniconda/etc/profile.d/conda.sh
+conda init
 
 # Step 2: Create a conda environment with Python 3.11
 echo "Creating the conda environment: auto_dock..."

@@ -7,7 +7,7 @@
 #SBATCH --partition=main              
 
 # Activation of the conda environment
-source ~/miniconda3/etc/profile.d/conda.sh
+source ~/miniconda/etc/profile.d/conda.sh
 conda activate auto_dock
 
 # Running a Python script

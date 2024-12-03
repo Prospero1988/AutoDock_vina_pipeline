@@ -89,7 +89,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate auto_dock
 
 # Uruchomienie skryptu Python
-python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 20 --energy_range 2</code></pre>
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
             </li>
             <li><strong>Modyfikacja parametrów:</strong>
                 <ul>
@@ -100,8 +100,8 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
                             <li><code>--ligands</code>: nazwa pliku SDF z ligandami do dokowania.</li>
                             <li><code>--tol</code>: liczba całkowita (może być ujemna; w takim przypadku umieść ją w cudzysłowie, np. <code>'-1'</code>), która zwiększa lub zmniejsza rozmiar siatki dokowania we wszystkich trzech wymiarach (w angstromach).</li>
                             <li><code>--pckt</code>: liczba całkowita od 1 do liczby wyliczonych przez P2RANK kieszeni. Określa, do której kieszeni zostanie wykonane dokowanie.</li>
-                            <li><code>--exhaust</code>: parametr <em>exhaustiveness</em> dla AutoDock Vina; domyślna wartość to 20. Więcej informacji znajdziesz w dokumentacji AutoDock Vina.</li>
-                            <li><code>--energy_range</code>: parametr kontrolujący zakres energii podczas dokowania; domyślna wartość to 2. Wyższa wartość (np. 3) pozwala na większą swobodę liganda.</li>
+                            <li><code>--exhaust</code>: parametr <em>exhaustiveness</em> dla AutoDock Vina; domyślna wartość to 16. Więcej informacji znajdziesz w dokumentacji AutoDock Vina.</li>
+                            <li><code>--energy_range</code>: parametr kontrolujący zakres energii podczas dokowania; domyślna wartość to 3. Wyższa wartość (np. 4) pozwala na większą swobodę liganda. Niższa, czyli np 2 zapewnia bardziej rigid dokowanie.</li>
                         </ul>
                     </li>
                 </ul>
@@ -211,7 +211,7 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
     <li>
         <strong>Wyniki dokowania ligandów:</strong>
         <ul>
-            <li>W podkatalogach receptorów znajdują się wyniki dla poszczególnych ligandów. Przykładowo dla liganda aspiryny i receptora <code>8W88</code>:
+            <li>W podkatalogach receptorów w folderze <code>03_ligands_results</code> znajdują się wyniki dla poszczególnych ligandów.  Wszystkie pliki PDBQT dla ligandów są dodatkowo zgrupowane w folderze <code>02_ligands_PDBQT</code>. Przykładowo dla liganda aspiryny i receptora <code>8W88</code>:
                 <ul>
                     <li><code>8W88_aspirin.pdbqt</code>: wszystkie pozycje dokowania dla liganda.</li>
                     <li><code>8W88_aspirin_docking.png</code>: obraz z najlepszą pozą dokowanego liganda.</li>

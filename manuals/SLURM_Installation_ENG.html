@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLURM Installation on Ubuntu</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1, h2 {
+            color: #000;
+        }
+        pre {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        ul {
+            margin-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>SLURM Installation Instructions on Ubuntu</h1>
+
+    <h2>Step 1: Update the System</h2>
+    <p>Ensure your system is up to date by running the following command:</p>
+    <pre><code>sudo apt update && sudo apt upgrade -y</code></pre>
+
+    <h2>Step 2: Install Required Packages</h2>
+    <p>Install the necessary dependencies:</p>
+    <pre><code>sudo apt install -y munge libmunge-dev libmunge2 build-essential slurm-wlm slurm-client</code></pre>
+    <p><strong>Note:</strong> Munge is an authentication system required by SLURM for inter-process communication.</p>
+
+    <h2>Step 3: Configure Munge</h2>
+    <ol>
+        <li>Create the Munge authentication key:
+            <pre><code>sudo /usr/sbin/create-munge-key</code></pre>
+        </li>
+        <li>Set the correct permissions:
+            <pre><code>sudo chown -R munge: /etc/munge /var/lib/munge /var/log/munge
+sudo chmod 700 /etc/munge /var/lib/munge /var/log/munge</code></pre>
+        </li>
+        <li>Start and enable the Munge service:
+            <pre><code>sudo systemctl enable munge
+sudo systemctl start munge</code></pre>
+        </li>
+        <li>Test Munge functionality:
+            <pre><code>munge -n | unmunge</code></pre>
+            <p>Expected result: <code>Success (0)</code>.</p>
+        </li>
+    </ol>
+
+    <h2>Step 4: Create a SLURM User</h2>
+    <p>Add a dedicated user for SLURM:</p>
+    <pre><code>sudo useradd -r -m -d /var/lib/slurm -s /bin/false slurm</code></pre>
+
+    <h2>Step 5: Configure SLURM Directories</h2>
+    <ol>
+        <li>Create the necessary directories:
+            <pre><code>sudo mkdir -p /var/spool/slurmd /var/log/slurm</code></pre>
+        </li>
+        <li>Set the correct permissions:
+            <pre><code>sudo chown -R slurm: /var/spool/slurmd /var/log/slurm
+sudo chmod -R 755 /var/spool/slurmd /var/log/slurm</code></pre>
+        </li>
+    </ol>
+
+    <h2>Step 6: Configure the <code>slurm.conf</code> File</h2>
+    <ol>
+        <li>Open the configuration file:
+            <pre><code>sudo nano /etc/slurm/slurm.conf</code></pre>
+        </li>
+        <li>Add the minimal configuration:
+            <pre><code># Basic Configuration
+ClusterName=goliat
+ControlMachine=cppc0261
+
+# Ports and Authentication
+SlurmctldPort=6817
+SlurmdPort=6818
+AuthType=auth/munge
+
+# Logging
+SlurmdLogFile=/var/log/slurm/slurmd.log
+SlurmctldLogFile=/var/log/slurm/slurmctld.log
+
+# Resource Management
+SlurmUser=slurm
+StateSaveLocation=/var/spool/slurmd
+SlurmdSpoolDir=/var/spool/slurmd
+ProctrackType=proctrack/pgid
+TaskPlugin=task/none
+SchedulerType=sched/backfill
+
+# Node Configuration
+NodeName=localhost CPUs=16 RealMemory=64000 State=UNKNOWN
+
+# Partition Configuration
+PartitionName=main Nodes=ALL Default=YES MaxTime=INFINITE State=UP</code></pre>
+        </li>
+        <li>Save the file and set the correct permissions:
+            <pre><code>sudo chown slurm: /etc/slurm/slurm.conf
+sudo chmod 644 /etc/slurm/slurm.conf</code></pre>
+        </li>
+    </ol>
+
+    <h2>Step 7: Start SLURM Services</h2>
+    <ol>
+        <li>Start and enable the services:
+            <pre><code>sudo systemctl enable slurmctld
+sudo systemctl enable slurmd
+sudo systemctl start slurmctld
+sudo systemctl start slurmd</code></pre>
+        </li>
+        <li>Check the status:
+            <pre><code>sudo systemctl status slurmctld
+sudo systemctl status slurmd</code></pre>
+            <p>Expected result: <code>Active: active (running)</code>.</p>
+        </li>
+    </ol>
+
+    <h2>Step 8: Test SLURM</h2>
+    <ol>
+        <li>Create a test script:
+            <pre><code>nano test_job.sh</code></pre>
+            <p>Add the following content:</p>
+            <pre><code>#!/bin/bash
+#SBATCH --job-name=test_job
+#SBATCH --output=test_job.out
+#SBATCH --ntasks=1
+#SBATCH --time=00:01:00
+
+echo "Hello, SLURM!"</code></pre>
+        </li>
+        <li>Make the script executable:
+            <pre><code>chmod +x test_job.sh</code></pre>
+        </li>
+        <li>Submit the job to the queue:
+            <pre><code>sbatch test_job.sh</code></pre>
+        </li>
+        <li>Check the results:
+            <pre><code>cat test_job.out</code></pre>
+        </li>
+    </ol>
+
+    <h2>Step 9: Enable Automatic Start on Boot</h2>
+    <p>Ensure all services start automatically on boot:</p>
+    <pre><code>sudo systemctl enable munge
+sudo systemctl enable slurmctld
+sudo systemctl enable slurmd</code></pre>
+
+    <h2>Additional Notes</h2>
+    <p>
+        If issues arise, check the SLURM service logs:
+    </p>
+    <pre><code>journalctl -u slurmctld
+journalctl -u slurmd</code></pre>
+</body>
+</html>

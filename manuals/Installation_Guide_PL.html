@@ -37,6 +37,40 @@
 
 <h1>Instrukcja instalacji systemu dokowania</h1>
 
+<h2>Tworzenie nowego użytkownika</h2>
+
+<ol>
+    <li>
+        <strong>Utwórz nowego użytkownika:</strong>
+        <pre><code>sudo adduser nazwa_uzytkownika</code></pre>
+        <p>W trakcie wykonywania tego polecenia system poprosi o podanie hasła dla nowego użytkownika oraz kilku opcjonalnych danych (np. pełne imię i nazwisko). Wpisz hasło, a resztę możesz pominąć, naciskając <code>Enter</code>.</p>
+    </li>
+    <li>
+        <strong>Skopiuj zawartość standardowego katalogu domowego (jeśli potrzeba):</strong>
+        <pre><code>sudo cp -r /etc/skel/. /home/nazwa_uzytkownika
+sudo chown -R nazwa_uzytkownika:nazwa_uzytkownika /home/nazwa_uzytkownika</code></pre>
+        <p>Jeśli chcesz, aby nowy użytkownik miał kopię domyślnych ustawień z katalogu <code>/etc/skel</code>, wykonaj powyższe polecenia.</p>
+    </li>
+    <li>
+        <strong>Dodaj użytkownika do grupy sudo:</strong>
+        <pre><code>sudo usermod -aG sudo nazwa_uzytkownika</code></pre>
+        <p>Jeśli chcesz, aby nowy użytkownik miał uprawnienia administratora.</p>
+    </li>
+    <li>
+        <strong>Sprawdź, czy użytkownik działa poprawnie:</strong>
+        <pre><code>su - nazwa_uzytkownika</code></pre>
+        <p>Możesz zalogować się na konto nowego użytkownika i sprawdzić, czy działa poprawnie.</p>
+    </li>
+    <li>
+        <strong>Po zakończonych instalacjach odbierz uprawnienia sudo:</strong>
+        <pre><code>sudo deluser nazwa_uzytkownika sudo</code></pre>
+        <p>Sprawdź, czy użytkownik nie ma już dostępu do <code>sudo</code>:</p>
+        <pre><code>sudo whoami</code></pre>
+        <p>Powinien pojawić się komunikat o braku uprawnień.</p>
+    </li>
+</ol>
+
+
 <h2>Kopiowanie plików programu</h2>
 
 <ol>
@@ -50,7 +84,7 @@
                 <pre><code>cd /home/nazwa_uzytkownika</code></pre>
             </li>
             <li>Nadaj prawa dostępu do katalogu <code>dock</code>:
-                <pre><code>chmod -R 755 ~/dock
+                <pre><code>chmod -R 755 /home/nazwa_uzytkownika/dock
 sudo chown -R nazwa_uzytkownika:nazwa_uzytkownika /home/nazwa_uzytkownika/dock</code></pre>
             </li>
         </ul>

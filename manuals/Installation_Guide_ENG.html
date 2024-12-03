@@ -38,6 +38,40 @@
 
 <h1>Installation Guide for Docking System</h1>
 
+<h2>Creating a New User</h2>
+
+<ol>
+    <li>
+        <strong>Create a new user:</strong>
+        <pre><code>sudo adduser username</code></pre>
+        <p>During this process, the system will ask you to set a password for the new user and optionally provide some additional information (e.g., full name). Enter the password, and you can skip the rest by pressing <code>Enter</code>.</p>
+    </li>
+    <li>
+        <strong>Copy the default home directory content (if needed):</strong>
+        <pre><code>sudo cp -r /etc/skel/. /home/username
+sudo chown -R username:username /home/username</code></pre>
+        <p>If you want the new user to have the default settings from the <code>/etc/skel</code> directory, execute the above commands.</p>
+    </li>
+    <li>
+        <strong>Add the user to the sudo group:</strong>
+        <pre><code>sudo usermod -aG sudo username</code></pre>
+        <p>Use this if you want the new user to have administrative privileges.</p>
+    </li>
+    <li>
+        <strong>Verify the user works correctly:</strong>
+        <pre><code>su - username</code></pre>
+        <p>You can log in to the new user's account and verify it works properly.</p>
+    </li>
+    <li>
+        <strong>Remove sudo privileges after completing installations:</strong>
+        <pre><code>sudo deluser username sudo</code></pre>
+        <p>Check that the user no longer has <code>sudo</code> access:</p>
+        <pre><code>sudo whoami</code></pre>
+        <p>You should see a message indicating that the user does not have permissions.</p>
+    </li>
+</ol>
+
+
 <h2>Copying Program Files</h2>
 
 <ol>
@@ -51,7 +85,7 @@
                 <pre><code>cd /home/username</code></pre>
             </li>
             <li>Grant access rights to the <code>dock</code> folder:
-                <pre><code>chmod -R 755 ~/dock
+                <pre><code>chmod -R 755 /home/username/dock
 sudo chown -R username:username /home/username/dock</code></pre>
             </li>
         </ul>
