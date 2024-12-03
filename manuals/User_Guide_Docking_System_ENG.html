@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>User Manual for the Docking System</title>
+    <title>User Guide for Docking System</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -36,46 +36,46 @@
 </head>
 <body>
 
-<h1>User Manual for the Docking System</h1>
+<h1>User Guide for Docking System</h1>
 
-<h2>Preparing Input Files for Calculations</h2>
+<h2>Preparing Batch Files for Calculations</h2>
 
 <ol>
     <li>
-        <strong>Connect to the computational server:</strong>
+        <strong>Connect to the Computing Server:</strong>
         <ul>
-            <li>Use any SCP manager (e.g., <strong>WinSCP</strong> or <strong>PuTTY</strong>) and connect to the server at IP address: <code>172.22.31.82</code>.</li>
+            <li>Use any SCP manager (e.g., <strong>WinSCP</strong> or <strong>PuTTY</strong>) to connect to the server with the IP address: <code>172.22.31.82</code>.</li>
             <li>Log in using your unique username and password.</li>
         </ul>
     </li>
     <li>
-        <strong>Prepare the working directory:</strong>
+        <strong>Prepare the Working Directory:</strong>
         <ul>
-            <li>After logging in, you will be in your home directory <code>./home</code>.</li>
-            <li>There is a directory named <code>dock</code> there. <strong>Do not modify or delete its contents.</strong></li>
-            <li>In your home directory, create a new directory named after your project, e.g., <code>TAAR1_trial_01</code>.</li>
-            <li><strong>Copy</strong> all contents of the <code>dock</code> directory into your newly created project directory. <strong>Do not move the files!</strong></li>
+            <li>Upon logging in, you will be in your home directory <code>./home</code>.</li>
+            <li>There is a directory named <code>dock</code>. <strong>Do not modify or delete its contents.</strong></li>
+            <li>Create a new project directory in your home directory, for example, <code>TAAR1_trial_01</code>.</li>
+            <li><strong>Copy</strong> all contents of the <code>dock</code> directory to the newly created project directory. <strong>Do not move the files!</strong></li>
         </ul>
     </li>
     <li>
-        <strong>Prepare the input files:</strong>
+        <strong>Prepare Input Files:</strong>
         <ul>
-            <li>Navigate to your new project directory, e.g.:
+            <li>Navigate to the new project directory, for example:
                 <pre><code>cd ./TAAR1_trial_01</code></pre>
             </li>
-            <li>The directory contains files and subdirectories. You are interested in two of them:
+            <li>Within the directory, there are files and subdirectories. You are interested in two of them:
                 <ul>
-                    <li><strong><code>ligands</code></strong>: place your SDF file with ligand structures for docking here. The file name can be any name.</li>
-                    <li><strong><code>receptors</code></strong>: this contains a CSV file named <code>receptors.csv</code>, where the PDB codes of the receptors are listed one below the other. You can rename this file as you wish.</li>
+                    <li><strong><code>ligands</code></strong>: Place your SDF or MOL2 file containing ligand structures for docking here. The file name can be arbitrary.</li>
+                    <li><strong><code>receptors</code></strong>: This contains a CSV file named <code>receptors.csv</code>, listing PDB codes of receptors, one per line. You can rename this file as desired.</li>
                 </ul>
             </li>
-            <li>Both directories contain sample files showing the correct data format.</li>
+            <li>Both directories contain example files demonstrating the correct data format.</li>
         </ul>
     </li>
     <li>
-        <strong>Configure the script to start calculations:</strong>
+        <strong>Configure the Calculation Startup File:</strong>
         <ul>
-            <li>In the main project directory, there is a file named <code>start_docking.sh</code>. Its structure looks like this:
+            <li>In the main project directory, there is a file named <code>start_docking.sh</code>. Its structure is as follows:
                 <pre><code>#!/bin/bash
 #SBATCH --job-name=docking_job        # Job name
 #SBATCH --output=/dev/null            # No SLURM logs
@@ -84,24 +84,24 @@
 #SBATCH --time=INFINITE               # No time limit
 #SBATCH --partition=main              # Default partition
 
-# Activate conda environment
-source ~/miniconda3/etc/profile.d/conda.sh
+# Activate the Conda environment
+source ~/miniconda/etc/profile.d/conda.sh
 conda activate auto_dock
 
-# Run Python script
-python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
+# Run the Python script
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 0 --tol_y 0 --tol_z 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
             </li>
-            <li><strong>Modifying parameters:</strong>
+            <li><strong>Modify Parameters:</strong>
                 <ul>
-                    <li>If you do not change the names of the input files (<code>receptors.csv</code> and <code>ligands.sdf</code>), you do not need to edit the last line.</li>
+                    <li>If you are not changing the input file names (<code>receptors.csv</code> and <code>ligands.sdf</code> or <code>ligands.mol2</code>), you do not need to edit the last line.</li>
                     <li>Otherwise, adjust the parameters in the last line:
                         <ul>
-                            <li><code>--pdb_ids</code>: name of the CSV file with receptor PDB codes.</li>
-                            <li><code>--ligands</code>: name of the SDF file with ligands for docking.</li>
-                            <li><code>--tol</code>: an integer (can be negative; in that case, enclose it in quotes, e.g., <code>'-1'</code>) that increases or decreases the docking grid size in all three dimensions (in angstroms).</li>
-                            <li><code>--pckt</code>: an integer from 1 to the number of pockets calculated by P2RANK. Specifies which pocket will be used for docking.</li>
-                            <li><code>--exhaust</code>: the <em>exhaustiveness</em> parameter for AutoDock Vina; default value is 16. More information can be found in the AutoDock Vina documentation.</li>
-                            <li><code>--energy_range</code>: parameter controlling the energy range during docking; default value is 3. A higher value (e.g., 4) allows for greater ligand flexibility. Lower (e.g.2) locks more rigid docking.</li>
+                            <li><code>--pdb_ids</code>: Name of the CSV file containing receptor PDB codes.</li>
+                            <li><code>--ligands</code>: Name of the SDF or MOL2 file containing ligands for docking.</li>
+                            <li><code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>: Integer values (can be negative; in such cases, enclose them in quotes, e.g., <code>'-1'</code>), which increase or decrease the size of the docking grid along the respective dimensions (in angstroms). They allow independent control over the grid dimensions in the X, Y, and Z axes.</li>
+                            <li><code>--pckt</code>: Integer from 1 to the number of pockets predicted by P2Rank. Specifies which pocket to use for docking.</li>
+                            <li><code>--exhaust</code>: The <em>exhaustiveness</em> parameter for AutoDock Vina; default value is 16. More information can be found in the AutoDock Vina documentation.</li>
+                            <li><code>--energy_range</code>: Parameter controlling the energy range during docking; default value is 3. A higher value (e.g., 4) allows for more flexibility of the ligand. A lower value (e.g., 2) ensures more rigid docking.</li>
                         </ul>
                     </li>
                 </ul>
@@ -115,44 +115,44 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
 
 <ol>
     <li>
-        <strong>Launching the terminal:</strong>
+        <strong>Launching the Terminal:</strong>
         <ul>
-            <li><strong>Windows:</strong> Press <code>Win + R</code>, type <code>cmd</code>, and press Enter to open the command prompt. You can also use <strong>PowerShell</strong> or an SSH client like <strong>MobaXterm</strong>.</li>
+            <li><strong>Windows:</strong> Press <code>Win + R</code>, type <code>cmd</code>, and press Enter to open the command prompt. You can also use <strong>PowerShell</strong> or an SSH-compatible program like <strong>MobaXterm</strong>.</li>
         </ul>
     </li>
     <li>
-        <strong>Connect to the server:</strong>
+        <strong>Connecting to the Server:</strong>
         <ul>
-            <li>Ensure you are connected to the local network or using VPN.</li>
-            <li>Connect to the server by typing in the terminal:
+            <li>Ensure you are connected to the local network or using a VPN.</li>
+            <li>Connect to the server by entering the following command in the terminal:
                 <pre><code>ssh username@172.22.31.82</code></pre>
             </li>
             <li>Enter your password when prompted.</li>
         </ul>
     </li>
     <li>
-        <strong>Navigate to the project directory:</strong>
+        <strong>Navigating to the Project Directory:</strong>
         <ul>
-            <li>Go to the project directory you created earlier:
+            <li>Navigate to the previously created project directory:
                 <pre><code>cd ./TAAR1_trial_01</code></pre>
             </li>
-            <li>Ensure the <code>start_docking.sh</code> file has the appropriate execution permissions:
+            <li>Ensure that the <code>start_docking.sh</code> file has execute permissions:
                 <pre><code>chmod +x start_docking.sh</code></pre>
             </li>
         </ul>
     </li>
 </ol>
 
-<h2>Running Calculations Using the SLURM System</h2>
+<h2>Running Calculations Using SLURM</h2>
 
 <ol>
     <li>
-        <strong>Checking the job queue status:</strong>
+        <strong>Checking the Job Queue Status:</strong>
         <ul>
-            <li>To check the current calculation queue:
+            <li>To check the current job queue:
                 <pre><code>squeue</code></pre>
             </li>
-            <li>This will display a list of jobs, including Job ID, user, and other information.</li>
+            <li>This will display a list of jobs, including Job IDs, users, and other details.</li>
             <li>To get detailed information about a specific job:
                 <pre><code>scontrol show job &lt;JobID&gt;</code></pre>
             </li>
@@ -162,12 +162,12 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
         </ul>
     </li>
     <li>
-        <strong>Add your job to the queue:</strong>
+        <strong>Submitting a Job to the Queue:</strong>
         <ul>
-            <li>Start the calculations by adding your job to the SLURM queue:
+            <li>Start the calculations by submitting your job to the SLURM queue:
                 <pre><code>sbatch start_docking.sh</code></pre>
             </li>
-            <li>After receiving a message that your job has been accepted, you can disconnect from the terminal and wait for the calculations to complete.</li>
+            <li>After receiving a job acceptance message, you can disconnect from the terminal and wait for the calculations to complete.</li>
         </ul>
     </li>
 </ol>
@@ -176,83 +176,127 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
 
 <ul>
     <li>
-        <strong>Location of results:</strong>
+        <strong>Result Location:</strong>
         <ul>
-            <li>The results are located in the project directory, e.g., <code>TAAR1_trial_01</code>.</li>
-            <li>Subdirectories for individual receptors are created in the main directory.</li>
-            <li>All PDBQT files for ligands are further grouped in the <code>02_ligands_PDBQT</code> folder.</li>
+            <li>Results are located in the project directory, e.g., <code>TAAR1_trial_01</code>.</li>
+            <li>Subdirectories for each receptor are created in the main directory.</li>
         </ul>
     </li>
     <li>
-        <strong>Contents of the receptor subdirectory:</strong>
+        <strong>Contents of the Receptor Subdirectory:</strong>
         <ul>
-            <li><strong>HTML file</strong>: summary of docking results.</li>
-            <li><strong>Structural files:</strong>
+            <li><strong>HTML File:</strong> Summary of docking results, now including an additional column with links to PyMOL session files.</li>
+            <li><strong>Structural Files:</strong>
                 <ul>
-                    <li><code>Receptor_name.pdbqt</code>: final receptor structure used in docking.</li>
-                    <li><code>Receptor_name_dirty.pdb</code>: native structure downloaded from the PDB database.</li>
-                    <li><code>Receptor_name_fixed.pdb</code>: cleaned PDB structure used for calculations.</li>
+                    <li><code>Receptor_Name.pdbqt</code>: Final receptor structure used in docking.</li>
+                    <li><code>Receptor_Name_dirty.pdb</code>: Native structure downloaded from the PDB database.</li>
+                    <li><code>Receptor_Name_fixed.pdb</code>: Cleaned PDB structure prepared for calculations.</li>
                 </ul>
             </li>
-            <li><strong>Logs and results:</strong>
+            <li><strong>Logs and Results:</strong>
                 <ul>
-                    <li><code>Receptor_name_console_output.log</code>: detailed script execution log.</li>
-                    <li><code>Receptor_name_results.txt</code>: detailed information about docking poses from AutoDock Vina.</li>
+                    <li><code>Receptor_Name_console_output.log</code>: Detailed log of the script's execution.</li>
+                    <li><code>Receptor_Name_results.txt</code>: Detailed information about docking poses from AutoDock Vina.</li>
+                </ul>
+            </li>
+            <li><strong>Visualizations:</strong>
+                <ul>
+                    <li><code>02_ligands_results/</code>:
+                        <ul>
+                            <li>For each ligand:
+                                <ul>
+                                    <li><code>Ligand_Name.pdbqt</code>: Prepared ligand.</li>
+                                    <li><code>Ligand_Name.svg</code>: 2D structure image of the ligand.</li>
+                                    <li><code>Receptor_Name_Ligand_Name_docking.png</code>: Image of the best-docked ligand pose, now including the docking grid and XYZ axes.</li>
+                                    <li><code>Receptor_Name_Ligand_Name_docking.pse</code>: PyMOL session file containing the receptor-ligand complex with the docking grid and XYZ axes.</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li><code>03_ligands_PDBQT/</code>:
+                        <ul>
+                            <li>All PDBQT files for ligands post-docking, copied here for easy access.</li>
+                        </ul>
+                    </li>
                 </ul>
             </li>
         </ul>
     </li>
     <li>
-        <strong>P2RANK results:</strong>
+        <strong>P2RANK Results:</strong>
         <ul>
             <li>Located in the <code>01_p2rank_output</code> folder.</li>
-            <li>Particularly useful is the file with the <code>.pdb.pml</code> extension in the <code>visualisations</code> subfolder, which can be opened in <strong>PyMol</strong> for visualizing the docking pockets.</li>
-        </ul>
-    </li>
-    <li>
-        <strong>Ligand docking results:</strong>
-        <ul>
-            <li>The results for individual ligands are located in the receptor subdirectories in <code>03_ligands_results</code> directory. For example, for the ligand aspirin and receptor <code>8W88</code>:
-                <ul>
-                    <li><code>8W88_aspirin.pdbqt</code>: all docking positions for the ligand.</li>
-                    <li><code>8W88_aspirin_docking.png</code>: image with the best-docked pose of the ligand.</li>
-                    <li><code>aspirin.pdb</code>: ligand structure in PDB format.</li>
-                    <li><code>aspirin.pdbqt</code>: ligand prepared for docking.</li>
-                    <li><code>aspirin.svg</code>: graphic file with the 2D structure of the ligand.</li>
-                </ul>
-            </li>
+            <li>Particularly useful is the file in the <code>visualisations</code> subfolder with the <code>.pdb.pml</code> extension, which can be opened in <strong>PyMOL</strong> to visualize the docking pocket.</li>
         </ul>
     </li>
 </ul>
 
-<h2>Using PyMol</h2>
+<h2>Using PyMOL</h2>
 
 <ul>
     <li>
-        <strong>PyMol</strong> is installed on every account and allows you to view files located on the server.
+        <strong>PyMOL</strong> is installed on every account and allows you to view files located on the server.
     </li>
     <li>
         <strong>Requirements:</strong>
         <ul>
-            <li>PyMol requires an X11 server program to run.</li>
-            <li>We recommend using <strong>MobaXterm</strong>, which has a built-in X11 server and is an advanced SSH terminal. A portable version is available that does not require installation.</li>
+            <li>PyMOL requires an X11 server for graphical display.</li>
+            <li>We recommend using <strong>MobaXterm</strong>, which includes a built-in X11 server and is an advanced SSH terminal. A portable version is available, which does not require installation.</li>
         </ul>
     </li>
     <li>
-        <strong>Launching PyMol:</strong>
+        <strong>Launching PyMOL:</strong>
         <ol>
-            <li>Ensure the <strong>conda</strong> environment is active:
-                <pre><code>conda activate auto_dock</code></pre>
+            <li>Ensure that the <strong>conda</strong> environment is active:
+                <pre><code>source ~/miniconda/etc/profile.d/conda.sh
+conda activate auto_dock</code></pre>
             </li>
-            <li>Start PyMol:
+            <li>Start PyMOL:
                 <pre><code>pymol</code></pre>
             </li>
         </ol>
     </li>
     <li>
+        <strong>Using PyMOL Session Files:</strong>
+        <ul>
+            <li>PyMOL session files (<code>.pse</code>) are located in the ligands folders within <code>02_ligands_results</code>.</li>
+            <li>You can download them to your computer and open them in a local PyMOL installation for interactive analysis of docking results.</li>
+            <li>These files contain the receptor-ligand complex, docking grid, and XYZ axes, facilitating spatial orientation and detailed analysis of the binding site.</li>
+            <li>Visualizations in PyMOL now include the docking grid and XYZ axes, allowing for a better understanding of the spatial location of the docking site relative to the entire receptor structure.</li>
+        </ul>
+    </li>
+    <li>
         <strong>Notes:</strong>
         <ul>
-            <li>PyMol allows you to view files located on the server. It does not allow viewing files on your local computer.</li>
+            <li>PyMOL allows you to view files located on the server. It does not support viewing files on your local computer directly unless you download the files to your machine.</li>
+            <li>If you want to work with PyMOL session files locally, download them from the server using an SCP manager (e.g., <strong>WinSCP</strong>).</li>
+        </ul>
+    </li>
+</ul>
+
+<h2>Additional Information</h2>
+
+<ul>
+    <li>
+        <strong>New Features:</strong>
+        <ul>
+            <li>The docking script has been updated to include visualization of the docking grid and XYZ axes in the generated images and PyMOL session files.</li>
+            <li>Instead of a single <code>--tol</code> parameter, there are now three independent parameters: <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>, allowing precise control over the size of the docking grid in each dimension.</li>
+            <li>An additional column with links to PyMOL session files has been added to the HTML docking results file, facilitating access to interactive visualizations.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Example of Running with New Parameters:</strong>
+        <pre><code>python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 5 --tol_y 5 --tol_z 5 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
+        <ul>
+            <li>The above command sets the docking grid tolerance to 5 Å in each of the X, Y, and Z dimensions.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Tips:</strong>
+        <ul>
+            <li>It is recommended to experiment with different values for <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code> to optimize docking results.</li>
+            <li>If you encounter issues with visualization or analysis of results, contact the system administrator.</li>
         </ul>
     </li>
 </ul>

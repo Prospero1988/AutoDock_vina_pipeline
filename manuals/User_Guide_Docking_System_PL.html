@@ -65,7 +65,7 @@
             </li>
             <li>W katalogu znajdują się pliki i podkatalogi. Interesują Cię dwa z nich:
                 <ul>
-                    <li><strong><code>ligands</code></strong>: umieść tutaj plik SDF ze strukturami ligandów do dokowania. Nazwa pliku może być dowolna.</li>
+                    <li><strong><code>ligands</code></strong>: umieść tutaj plik SDF lub MOL2 ze strukturami ligandów do dokowania. Nazwa pliku może być dowolna.</li>
                     <li><strong><code>receptors</code></strong>: znajduje się tutaj plik CSV o nazwie <code>receptors.csv</code>, w którym jeden pod drugim podane są kody PDB receptorów. Możesz zmienić nazwę tego pliku według uznania.</li>
                 </ul>
             </li>
@@ -85,11 +85,11 @@
 #SBATCH --partition=main              # Domyślna partycja
 
 # Aktywacja środowiska conda
-source ~/miniconda3/etc/profile.d/conda.sh
+source ~/miniconda/etc/profile.d/conda.sh
 conda activate auto_dock
 
 # Uruchomienie skryptu Python
-python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 0 --tol_y 0 --tol_z 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
             </li>
             <li><strong>Modyfikacja parametrów:</strong>
                 <ul>
@@ -97,11 +97,11 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
                     <li>W przeciwnym razie dostosuj parametry w ostatniej linii:
                         <ul>
                             <li><code>--pdb_ids</code>: nazwa pliku CSV z kodami PDB receptorów.</li>
-                            <li><code>--ligands</code>: nazwa pliku SDF z ligandami do dokowania.</li>
-                            <li><code>--tol</code>: liczba całkowita (może być ujemna; w takim przypadku umieść ją w cudzysłowie, np. <code>'-1'</code>), która zwiększa lub zmniejsza rozmiar siatki dokowania we wszystkich trzech wymiarach (w angstromach).</li>
+                            <li><code>--ligands</code>: nazwa pliku SDF lub MOL2 z ligandami do dokowania.</li>
+                            <li><code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>: liczby całkowite (mogą być ujemne; w takim przypadku umieść je w cudzysłowie, np. <code>'-1'</code>), które zwiększają lub zmniejszają rozmiar siatki dokowania w odpowiednich wymiarach (w angstromach). Pozwalają na niezależną kontrolę wymiarów siatki w osiach X, Y i Z.</li>
                             <li><code>--pckt</code>: liczba całkowita od 1 do liczby wyliczonych przez P2RANK kieszeni. Określa, do której kieszeni zostanie wykonane dokowanie.</li>
                             <li><code>--exhaust</code>: parametr <em>exhaustiveness</em> dla AutoDock Vina; domyślna wartość to 16. Więcej informacji znajdziesz w dokumentacji AutoDock Vina.</li>
-                            <li><code>--energy_range</code>: parametr kontrolujący zakres energii podczas dokowania; domyślna wartość to 3. Wyższa wartość (np. 4) pozwala na większą swobodę liganda. Niższa, czyli np 2 zapewnia bardziej rigid dokowanie.</li>
+                            <li><code>--energy_range</code>: parametr kontrolujący zakres energii podczas dokowania; domyślna wartość to 3. Wyższa wartość (np. 4) pozwala na większą swobodę liganda. Niższa (np. 2) zapewnia bardziej sztywne dokowanie.</li>
                         </ul>
                     </li>
                 </ul>
@@ -185,7 +185,7 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
     <li>
         <strong>Zawartość podkatalogu receptora:</strong>
         <ul>
-            <li><strong>Plik HTML</strong>: podsumowanie wyników dokowania.</li>
+            <li><strong>Plik HTML</strong>: podsumowanie wyników dokowania, zawierające teraz dodatkową kolumnę z linkami do plików sesji PyMOL.</li>
             <li><strong>Pliki strukturalne:</strong>
                 <ul>
                     <li><code>Nazwa_receptora.pdbqt</code>: finalna struktura receptora użyta w dokowaniu.</li>
@@ -199,6 +199,27 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
                     <li><code>Nazwa_receptora_results.txt</code>: szczegółowe informacje o pozach dokowania z AutoDock Vina.</li>
                 </ul>
             </li>
+            <li><strong>Wizualizacje:</strong>
+                <ul>
+                    <li><code>02_ligands_results/</code>:
+                        <ul>
+                            <li>Dla każdego liganda:
+                                <ul>
+                                    <li><code>Nazwa_liganda.pdbqt</code>: przygotowany ligand.</li>
+                                    <li><code>Nazwa_liganda.svg</code>: plik graficzny ze strukturą 2D liganda.</li>
+                                    <li><code>Nazwa_receptora_Nazwa_liganda_docking.png</code>: obraz z najlepszą pozą dokowanego liganda, zawierający siatkę dokowania oraz osie XYZ.</li>
+                                    <li><code>Nazwa_receptora_Nazwa_liganda_docking.pse</code>: plik sesji PyMOL zawierający kompleks receptor-ligand z siatką dokowania oraz osiami XYZ.</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li><code>03_ligands_PDBQT/</code>:
+                        <ul>
+                            <li>Wszystkie pliki PDBQT dla ligandów po dokowaniu, skopiowane tutaj dla łatwego dostępu.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
         </ul>
     </li>
     <li>
@@ -206,20 +227,6 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
         <ul>
             <li>Znajdują się w folderze <code>01_p2rank_output</code>.</li>
             <li>Szczególnie przydatny jest plik w podfolderze <code>visualisations</code> z rozszerzeniem <code>.pdb.pml</code>, który można otworzyć w <strong>PyMol</strong> w celu wizualizacji kieszeni dokowania.</li>
-        </ul>
-    </li>
-    <li>
-        <strong>Wyniki dokowania ligandów:</strong>
-        <ul>
-            <li>W podkatalogach receptorów w folderze <code>03_ligands_results</code> znajdują się wyniki dla poszczególnych ligandów.  Wszystkie pliki PDBQT dla ligandów są dodatkowo zgrupowane w folderze <code>02_ligands_PDBQT</code>. Przykładowo dla liganda aspiryny i receptora <code>8W88</code>:
-                <ul>
-                    <li><code>8W88_aspirin.pdbqt</code>: wszystkie pozycje dokowania dla liganda.</li>
-                    <li><code>8W88_aspirin_docking.png</code>: obraz z najlepszą pozą dokowanego liganda.</li>
-                    <li><code>aspirin.pdb</code>: struktura liganda w formacie PDB.</li>
-                    <li><code>aspirin.pdbqt</code>: ligand przygotowany do dokowania.</li>
-                    <li><code>aspirin.svg</code>: plik graficzny ze strukturą 2D liganda.</li>
-                </ul>
-            </li>
         </ul>
     </li>
 </ul>
@@ -241,7 +248,8 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
         <strong>Uruchomienie PyMol:</strong>
         <ol>
             <li>Upewnij się, że środowisko <strong>conda</strong> jest aktywne:
-                <pre><code>conda activate auto_dock</code></pre>
+                <pre><code>source ~/miniconda/etc/profile.d/conda.sh
+conda activate auto_dock</code></pre>
             </li>
             <li>Uruchom PyMol:
                 <pre><code>pymol</code></pre>
@@ -249,9 +257,46 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol 
         </ol>
     </li>
     <li>
+        <strong>Korzystanie z plików sesji PyMol:</strong>
+        <ul>
+            <li>Pliki sesji PyMol (<code>.pse</code>) znajdują się w folderach ligandów w <code>02_ligands_results</code>.</li>
+            <li>Możesz je pobrać na swój komputer i otworzyć w lokalnej instalacji PyMol w celu interaktywnej analizy wyników dokowania.</li>
+            <li>Pliki te zawierają kompleks receptor-ligand, siatkę dokowania oraz osie XYZ, co ułatwia orientację przestrzenną i szczegółową analizę miejsca wiązania.</li>
+            <li>Wizualizacje w PyMol obejmują teraz siatkę dokowania oraz osie XYZ, co pozwala na lepsze zrozumienie przestrzennej lokalizacji miejsca dokowania względem całej struktury receptora.</li>
+        </ul>
+    </li>
+    <li>
         <strong>Uwagi:</strong>
         <ul>
-            <li>PyMol pozwala na przeglądanie plików znajdujących się na serwerze. Nie umożliwia przeglądania plików na lokalnym komputerze.</li>
+            <li>PyMol pozwala na przeglądanie plików znajdujących się na serwerze. Nie umożliwia przeglądania plików na lokalnym komputerze bezpośrednio, chyba że pobierzesz pliki na swój komputer.</li>
+            <li>Jeśli chcesz pracować z plikami sesji PyMol lokalnie, pobierz je z serwera, korzystając z menedżera SCP (np. <strong>WinSCP</strong>).</li>
+        </ul>
+    </li>
+</ul>
+
+<h2>Dodatkowe informacje</h2>
+
+<ul>
+    <li>
+        <strong>Nowe funkcjonalności:</strong>
+        <ul>
+            <li>Skrypt dokowania został zaktualizowany, aby uwzględniać wizualizację siatki dokowania oraz osi XYZ w generowanych obrazach i plikach sesji PyMol.</li>
+            <li>Zamiast jednego parametru <code>--tol</code>, dostępne są teraz trzy niezależne parametry <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>, pozwalające na precyzyjną kontrolę rozmiaru siatki dokowania w każdym z wymiarów.</li>
+            <li>Do pliku HTML z wynikami dokowania dodano nową kolumnę z linkami do plików sesji PyMol, co ułatwia dostęp do interaktywnych wizualizacji.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Przykład uruchomienia z nowymi parametrami:</strong>
+        <pre><code>python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 5 --tol_y 5 --tol_z 5 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
+        <ul>
+            <li>Powyższe polecenie ustawia tolerancję (rozszerzenie siatki dokowania) o 5 Å w każdym z wymiarów X, Y i Z.</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Wskazówki:</strong>
+        <ul>
+            <li>Zaleca się eksperymentowanie z wartościami <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code> w celu optymalizacji wyników dokowania.</li>
+            <li>W przypadku problemów z wizualizacją lub analizą wyników, skontaktuj się z administratorem systemu.</li>
         </ul>
     </li>
 </ul>
