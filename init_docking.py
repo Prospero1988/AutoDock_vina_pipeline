@@ -759,7 +759,7 @@ def draw_docking_box(center, size):
     # Create the box using CGO objects
     
     box = [
-        LINEWIDTH, 2.0,
+        LINEWIDTH, 1.0,
         COLOR, 1.0, 1.0, 0.0,  # Yellow color
         BEGIN, LINES,
         VERTEX, min_x, min_y, min_z,
