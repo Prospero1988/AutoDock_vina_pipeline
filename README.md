@@ -6,6 +6,13 @@ This repository provides an automated docking solution for ligands and receptor 
 
 If you have any problems with the installation or operation of the docking program do not be shy and contact me. I will try my best to help you.
 
+## Output example
+
+In this repository there is a downloadable file output_example.zip which contains an archive with a zipped sample output for the docking program.
+
+## Results screenshots
+
+
 ![Docking results visualization](img/results.png "Visualization of docking results")
 ![Docking results visualization](img/grid.png "Visualization of docking results")
 ![Docking results visualization](img/csv.png "Visualization of docking results")
