@@ -19,11 +19,19 @@ Arguments:
 
 - --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins, located in ./receptors directory.
 - --ligands: The name of the SDF or MOL2 file containing ligands to dock, located in ./ligands directory.
+- --tol_x: Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (optional)
+- --tol_y: Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (optional)
+- --tol_z: Tolerance in Ångströms to expand the docking pocket dimension in Z beyond those defined by P2Rank (optional)
 - --tol: Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).
 - --pckt: Pocket number to use from P2Rank predictions (default: 1).
 - --exhaust: Specifies how thorough the search should be for the best binding poses.
               Higher values increase precision but require more computation time (default: 16).
-- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 3).
+- --energy_range: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 4).
+- --offset_x: Offset in Ångströms to shift the center of the docking grid box along the X-axis (optional, default: 0).
+- --offset_y: Offset in Ångströms to shift the center of the docking grid box along the Y-axis (optional, default: 0).
+- --offset_z: Offset in Ångströms to shift the center of the docking grid box along the Z-axis (optional, default: 0).
+
+If offsets are given, these will be added to the automatically calculated centre by P2Rank, thus shifting the centre of the grid box.
 
 All receptor-related files will be saved in the ./PDB_ID directory. Each ligand's docking results will
 be saved in ./PDB_ID/02_ligands_results/ligand_name_or_number.
@@ -39,7 +47,7 @@ import subprocess
 import logging
 import re
 import tempfile
-import csv  # Import csv module
+import csv 
 
 from Bio import PDB
 from Bio.PDB import PDBList
@@ -89,12 +97,15 @@ def main():
     parser.add_argument('--tol_x', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (default: 0).')
     parser.add_argument('--tol_y', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (default: 0).')
     parser.add_argument('--tol_z', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimension in Z beyond those defined by P2Rank (default: 0).')
+    parser.add_argument('--offset_x', type=float, default=0.0, help='Offset in Ångströms to shift the center of the docking grid box along the X-axis (optional, default: 0).')
+    parser.add_argument('--offset_y', type=float, default=0.0, help='Offset in Ångströms to shift the center of the docking grid box along the Y-axis (optional, default: 0).')
+    parser.add_argument('--offset_z', type=float, default=0.0, help='Offset in Ångströms to shift the center of the docking grid box along the Z-axis (optional, default: 0).')
     parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
     parser.add_argument('--exhaust', type=int, default=16, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).')
     parser.add_argument('--energy_range', type=int, default=3, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 3).')
 
     args = parser.parse_args()
-
+   
     script_dir = os.path.dirname(os.path.abspath(__file__))
     pdb_ids_file = args.pdb_ids
     receptors_file_path = os.path.join(script_dir, 'receptors', pdb_ids_file)
@@ -267,8 +278,11 @@ def main():
             output_dir = os.path.join(receptor_folder, '01_p2rank_output')
             run_p2rank(fixed_pdb, output_dir)
 
-            # Get docking box parameters
-            center_x, center_y, center_z, Size_x, Size_y, Size_z, predictions_csv = get_docking_box(output_dir, fixed_pdb, tol_x, tol_y, tol_z, pocket_number)
+            # Get docking box parameters with offsets
+            center_x, center_y, center_z, Size_x, Size_y, Size_z, predictions_csv = get_docking_box(
+                output_dir, fixed_pdb, tol_x, tol_y, tol_z, pocket_number,
+                args.offset_x, args.offset_y, args.offset_z
+            )
 
             with open(results_file, 'w') as rf:
                 for ligand_data in ligand_data_list:
@@ -301,10 +315,12 @@ def main():
                     prepare_ligand(ligand_pdb, ligand_pdbqt)
 
                     # Run docking
-                    vina_output, affinities = run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
-                                        center_x, center_y, center_z,
-                                        Size_x, Size_y, Size_z,
-                                        exhaustiveness, energy_range)
+                    vina_output, affinities = run_vina(
+                        receptor_pdbqt, ligand_pdbqt, output_pdbqt,
+                        center_x, center_y, center_z,
+                        Size_x, Size_y, Size_z,
+                        exhaustiveness, energy_range
+                    )
 
                     # Copy PDBQT file after docking to folder 03_ligands_PDBQT
                     shutil.copy2(output_pdbqt, ligands_pdbqt_folder)
@@ -532,7 +548,7 @@ def run_p2rank(receptor_pdb, output_dir):
         raise
 
 @logger_decorator
-def get_docking_box(output_dir, receptor_pdb, tol_x, tol_y, tol_z, pocket_number):
+def get_docking_box(output_dir, receptor_pdb, tol_x, tol_y, tol_z, pocket_number, offset_x, offset_y, offset_z):
     try:
         receptor_base_name = os.path.basename(receptor_pdb).split('.')[0]
         predictions_csv = os.path.join(output_dir, f'{receptor_base_name}.pdb_predictions.csv')
@@ -545,10 +561,28 @@ def get_docking_box(output_dir, receptor_pdb, tol_x, tol_y, tol_z, pocket_number
         df.columns = df.columns.str.strip()
         pred.columns = pred.columns.str.strip()
 
-        # Obtaining center_x, center_y, center_z values
+        # Validacja numeru pocket
+        if pocket_number <= 0 or pocket_number > len(df):
+            raise ValueError(f"Pocket number {pocket_number} is out of range. Available pockets: 1-{len(df)}.")
+
+        # Pobranie automatycznie wyliczonego środka przez P2Rank
         center_x = float(df['center_x'].iloc[pocket_number - 1])
         center_y = float(df['center_y'].iloc[pocket_number - 1])
         center_z = float(df['center_z'].iloc[pocket_number - 1])
+
+        logging.info(f"P2Rank-determined grid center: X={center_x}, Y={center_y}, Z={center_z}")
+        print(f"Using P2Rank-determined grid center: X={center_x} Å, Y={center_y} Å, Z={center_z} Å.")
+
+        # Dodanie offsetów do środka grid boxa
+        center_x += offset_x
+        center_y += offset_y
+        center_z += offset_z
+
+        if offset_x != 0.0 or offset_y != 0.0 or offset_z != 0.0:
+            logging.info(f"Applied offsets: ΔX={offset_x}, ΔY={offset_y}, ΔZ={offset_z}")
+            print(f"Applied offsets: ΔX={offset_x} Å, ΔY={offset_y} Å, ΔZ={offset_z} Å.")
+            logging.info(f"Shifted grid center: X={center_x}, Y={center_y}, Z={center_z}")
+            print(f"Shifted grid center: X={center_x} Å, Y={center_y} Å, Z={center_z} Å.")
 
         # Selection of residues for chosen pocket 
         pocket = pred[pred['pocket'] == pocket_number]
@@ -587,6 +621,7 @@ def get_docking_box(output_dir, receptor_pdb, tol_x, tol_y, tol_z, pocket_number
         logging.error(f"Error in getting docking box parameters: {e}")
         print(f"Error in getting docking box parameters: {e}")
         raise
+
 
 @logger_decorator
 def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
