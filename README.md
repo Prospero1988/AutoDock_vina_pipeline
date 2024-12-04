@@ -1,17 +1,12 @@
-```markdown
 # AutoDock Vina Pipeline with P2RANK for HTS Docking
 
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
-<<<<<<< Updated upstream
 # Disclaimer
 
 I am still working on this project and adding new features. The uploaded repository is fully functional. If you have any suggestions then feel free to contact me, or open a discussion or add a post.
 
 ## Problems and support
-=======
-## Problems and Support
->>>>>>> Stashed changes
 
 If you encounter any problems with the installation or operation of the docking program, do not hesitate to contact me. I will do my best to assist you.
 
@@ -20,10 +15,20 @@ If you encounter any problems with the installation or operation of the docking 
 In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
 ## Results Screenshots
-
-![Docking results visualization](img/results.png "Visualization of docking results")
-![Docking results visualization](img/grid.png "Visualization of docking results")
-![Docking results visualization](img/csv.png "Visualization of docking results")
+</br>
+<div align="center">
+    <img src="img/results.png" alt="Docking results visualization" title="Visualization of docking results">
+</div>
+</br>
+<div align="center">
+    <img src="img/grid.png" alt="Docking results visualization" title="Visualization of docking results">
+</div>
+</br>
+<div align="center">
+    <img src="img/csv.png" alt="Docking results visualization" title="Visualization of docking results">
+</div>
+</br>
+<hr>
 
 ## Technologies Used
 - **Python 3.11**: Core scripting language.
