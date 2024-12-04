@@ -22,7 +22,6 @@ Arguments:
 - --tol_x: Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (optional)
 - --tol_y: Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (optional)
 - --tol_z: Tolerance in Ångströms to expand the docking pocket dimension in Z beyond those defined by P2Rank (optional)
-- --tol: Tolerance in Ångströms to expand the docking pocket dimensions beyond those defined by P2Rank (default: 0).
 - --pckt: Pocket number to use from P2Rank predictions (default: 1).
 - --exhaust: Specifies how thorough the search should be for the best binding poses.
               Higher values increase precision but require more computation time (default: 16).
