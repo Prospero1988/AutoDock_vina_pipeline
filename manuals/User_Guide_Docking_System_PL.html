@@ -89,7 +89,7 @@ source ~/miniconda/etc/profile.d/conda.sh
 conda activate auto_dock
 
 # Uruchomienie skryptu Python
-python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 0 --tol_y 0 --tol_z 0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
+python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 0 --tol_y 0 --tol_z 0 --offset_x 0.0 --offset_y 0.0 --offset_z 0.0 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
             </li>
             <li><strong>Modyfikacja parametrów:</strong>
                 <ul>
@@ -98,7 +98,8 @@ python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_
                         <ul>
                             <li><code>--pdb_ids</code>: nazwa pliku CSV z kodami PDB receptorów.</li>
                             <li><code>--ligands</code>: nazwa pliku SDF lub MOL2 z ligandami do dokowania.</li>
-                            <li><code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>: liczby całkowite (mogą być ujemne; w takim przypadku umieść je w cudzysłowie, np. <code>'-1'</code>), które zwiększają lub zmniejszają rozmiar siatki dokowania w odpowiednich wymiarach (w angstromach). Pozwalają na niezależną kontrolę wymiarów siatki w osiach X, Y i Z.</li>
+                            <li><code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>: liczby zmiennoprzecinkowe (mogą być ujemne), które zwiększają lub zmniejszają rozmiar siatki dokowania w odpowiednich wymiarach (w angstromach). Pozwalają na niezależną kontrolę wymiarów siatki w osiach X, Y i Z.</li>
+                            <li><code>--offset_x</code>, <code>--offset_y</code>, <code>--offset_z</code>: liczby zmiennoprzecinkowe umożliwiające niezależne przesunięcie środka siatki dokowania w osiach X, Y i Z. Domyślnie ustawione na <code>0.0</code>, co oznacza brak przesunięcia.</li>
                             <li><code>--pckt</code>: liczba całkowita od 1 do liczby wyliczonych przez P2RANK kieszeni. Określa, do której kieszeni zostanie wykonane dokowanie.</li>
                             <li><code>--exhaust</code>: parametr <em>exhaustiveness</em> dla AutoDock Vina; domyślna wartość to 16. Więcej informacji znajdziesz w dokumentacji AutoDock Vina.</li>
                             <li><code>--energy_range</code>: parametr kontrolujący zakres energii podczas dokowania; domyślna wartość to 3. Wyższa wartość (np. 4) pozwala na większą swobodę liganda. Niższa (np. 2) zapewnia bardziej sztywne dokowanie.</li>
@@ -282,20 +283,23 @@ conda activate auto_dock</code></pre>
         <ul>
             <li>Skrypt dokowania został zaktualizowany, aby uwzględniać wizualizację siatki dokowania oraz osi XYZ w generowanych obrazach i plikach sesji PyMol.</li>
             <li>Zamiast jednego parametru <code>--tol</code>, dostępne są teraz trzy niezależne parametry <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code>, pozwalające na precyzyjną kontrolę rozmiaru siatki dokowania w każdym z wymiarów.</li>
+            <li>Dodano nowe parametry <code>--offset_x</code>, <code>--offset_y</code>, <code>--offset_z</code>, które umożliwiają niezależne przesunięcie środka siatki dokowania w osiach X, Y i Z. Pozwalają one na precyzyjne dopasowanie pozycji siatki dokowania do specyficznych potrzeb użytkownika.</li>
             <li>Do pliku HTML z wynikami dokowania dodano nową kolumnę z linkami do plików sesji PyMol, co ułatwia dostęp do interaktywnych wizualizacji.</li>
         </ul>
     </li>
     <li>
         <strong>Przykład uruchomienia z nowymi parametrami:</strong>
-        <pre><code>python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'ligands.sdf' --tol_x 5 --tol_y 5 --tol_z 5 --pckt 1 --exhaust 16 --energy_range 3</code></pre>
+        <pre><code>python3 init_docking.py --pdb_ids 'receptors.csv' --ligands 'bad_ligands.sdf' --tol_x -2 --tol_y -5 --tol_z -2 --offset_x 0.0 --offset_y -0.5 --offset_z 2.0 --pckt 1 --exhaust 16 --energy_range 4</code></pre>
         <ul>
-            <li>Powyższe polecenie ustawia tolerancję (rozszerzenie siatki dokowania) o 5 Å w każdym z wymiarów X, Y i Z.</li>
+            <li>Powyższe polecenie ustawia tolerancję (rozszerzenie siatki dokowania) o -2 Å w osi X, -5 Å w osi Y i -2 Å w osi Z, a także przesuwa środek siatki dokowania o 0.0 Å w osi X, -0.5 Å w osi Y oraz 2.0 Å w osi Z.</li>
         </ul>
     </li>
     <li>
         <strong>Wskazówki:</strong>
         <ul>
-            <li>Zaleca się eksperymentowanie z wartościami <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code> w celu optymalizacji wyników dokowania.</li>
+            <li>Zaleca się eksperymentowanie z wartościami <code>--tol_x</code>, <code>--tol_y</code>, <code>--tol_z</code> oraz <code>--offset_x</code>, <code>--offset_y</code>, <code>--offset_z</code> w celu optymalizacji wyników dokowania.</li>
+            <li>Używając wartości ujemnych dla tolerancji, możesz zmniejszyć rozmiar siatki dokowania w danej osi, co może być przydatne w specyficznych przypadkach.</li>
+            <li>Wartości offsetów mogą być użyteczne do precyzyjnego dopasowania pozycji siatki dokowania względem przewidywanego miejsca wiązania.</li>
             <li>W przypadku problemów z wizualizacją lub analizą wyników, skontaktuj się z administratorem systemu.</li>
         </ul>
     </li>

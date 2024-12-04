@@ -1,21 +1,25 @@
+```markdown
 # AutoDock Vina Pipeline with P2RANK for HTS Docking
 
 This repository provides an automated docking solution for ligands and receptor proteins using AutoDock Vina and P2Rank. It supports high-throughput docking workflows and integrates seamlessly with SLURM or can be run locally.
 
+<<<<<<< Updated upstream
 # Disclaimer
 
 I am still working on this project and adding new features. The uploaded repository is fully functional. If you have any suggestions then feel free to contact me, or open a discussion or add a post.
 
 ## Problems and support
+=======
+## Problems and Support
+>>>>>>> Stashed changes
 
-If you have any problems with the installation or operation of the docking program do not be shy and contact me. I will try my best to help you.
+If you encounter any problems with the installation or operation of the docking program, do not hesitate to contact me. I will do my best to assist you.
 
-## Output example
+## Output Example
 
-In this repository there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
+In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
-## Results screenshots
-
+## Results Screenshots
 
 ![Docking results visualization](img/results.png "Visualization of docking results")
 ![Docking results visualization](img/grid.png "Visualization of docking results")
@@ -50,7 +54,17 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 - The script accepts the following arguments:
   - `--pdb_ids`: A CSV file located in the `./receptors` directory, containing the PDB IDs of receptor proteins. Each ID corresponds to a unique protein structure available in the Protein Data Bank (PDB).
   - `--ligands`: A ligand file located in the `./ligands` directory. Supported formats include **SDF** and **MOL2** files, allowing flexibility in ligand input.
-  - Optional parameters like `--tol_x`, `--tol_y`, `--tol_z`, `--pckt`, `--exhaust`, and `--energy_range` define the docking box dimensions, pocket selection, search thoroughness, and energy range for pose scoring.
+  - **Tolerance Parameters**:
+    - `--tol_x`: Tolerance in Ångströms to expand the docking pocket dimension along the X-axis beyond those defined by P2Rank (default: 0.0).
+    - `--tol_y`: Tolerance in Ångströms to expand the docking pocket dimension along the Y-axis beyond those defined by P2Rank (default: 0.0).
+    - `--tol_z`: Tolerance in Ångströms to expand the docking pocket dimension along the Z-axis beyond those defined by P2Rank (default: 0.0).
+  - **Offset Parameters**:
+    - `--offset_x`: Offset in Ångströms to shift the center of the docking grid box along the X-axis (optional, default: 0.0).
+    - `--offset_y`: Offset in Ångströms to shift the center of the docking grid box along the Y-axis (optional, default: 0.0).
+    - `--offset_z`: Offset in Ångströms to shift the center of the docking grid box along the Z-axis (optional, default: 0.0).
+  - `--pckt`: Pocket number to use from P2Rank predictions (default: 1).
+  - `--exhaust`: Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).
+  - `--energy_range`: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 4).
 
 - **Automatic Ligand Naming**:
   - In cases where ligands in the input files lack explicit names, the script assigns them generic names in the format `ligand_001`, `ligand_002`, etc., ensuring consistent and organized output.
@@ -79,7 +93,7 @@ The `init_docking.py` script automates the process of docking multiple ligands t
   - The predictions are saved in a folder named `01_p2rank_output` within the receptor's directory.
   - A CSV file (`<PDB_ID>_predictions.csv`) lists each pocket's coordinates, size, and scores.
 
-- The selected pocket (based on the `--pckt` argument) is used to define the docking box dimensions. This includes the center coordinates (`center_x`, `center_y`, `center_z`) and sizes (`size_x`, `size_y`, `size_z`) with optional tolerances (`--tol_x`, `--tol_y`, `--tol_z`) for each axis.
+- The selected pocket (based on the `--pckt` argument) is used to define the docking box dimensions. This includes the center coordinates (`center_x`, `center_y`, `center_z`) and sizes (`size_x`, `size_y`, `size_z`) with optional tolerances (`--tol_x`, `--tol_y`, `--tol_z`) for each axis. Additionally, optional offsets (`--offset_x`, `--offset_y`, `--offset_z`) allow for independent shifting of the docking grid center along each axis.
 
 ---
 
@@ -100,7 +114,7 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 
 ### **5. Docking Execution**
 - The script runs AutoDock Vina for each receptor-ligand pair:
-  - The docking box is defined using P2Rank predictions.
+  - The docking box is defined using P2Rank predictions, with optional tolerances and offsets.
   - Parameters such as `--exhaust` (exhaustiveness) and `--energy_range` control the thoroughness and energy tolerance for pose scoring.
   - Docking results are saved in `.pdbqt` format, and key details (e.g., binding affinities) are extracted from the output.
 
@@ -161,8 +175,6 @@ The `init_docking.py` script automates the process of docking multiple ligands t
 
 ---
 
-This modular pipeline ensures seamless handling of multiple receptors and ligands, providing users with comprehensive results for further analysis.
-
 ## Installation
 
 ### Full Installation (Fresh System)
@@ -209,16 +221,40 @@ Ensure the following tools are available in their respective paths:
     ```
 2. **Run the Python Script**:
     ```bash
-    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf --tol_x 5 --tol_y 5 --tol_z 5
+    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf --tol_x -2 --tol_y -5 --tol_z -2 --offset_x 0.0 --offset_y -0.5 --offset_z 2.0 --pckt 1 --exhaust 16 --energy_range 4
     ```
    - To use a MOL2 file:
     ```bash
-    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.mol2 --tol_x 5 --tol_y 5 --tol_z 5
+    python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.mol2 --tol_x -2 --tol_y -5 --tol_z -2 --offset_x 0.0 --offset_y -0.5 --offset_z 2.0 --pckt 1 --exhaust 16 --energy_range 4
     ```
 
-- **Note**: The `--tol_x`, `--tol_y`, and `--tol_z` arguments allow independent control over the expansion of the docking box along the X, Y, and Z axes, respectively.
+- **Tolerance Parameters**:
+  - `--tol_x`, `--tol_y`, `--tol_z`: Define how much to expand the docking pocket along each respective axis beyond the predictions made by P2Rank. Negative values indicate contraction.
+
+- **Offset Parameters**:
+  - `--offset_x`, `--offset_y`, `--offset_z`: Independently shift the center of the docking grid box along the X, Y, and Z axes respectively. These values are added to the automatically determined center from P2Rank. If an offset is not specified for an axis, it defaults to `0.0`, meaning no shift along that axis.
+  
+  - **Examples**:
+    - **Full Offset**:
+      ```bash
+      python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf --tol_x 2 --tol_y 2 --tol_z 2 --offset_x 1.5 --offset_y -0.5 --offset_z 3.0 --pckt 1 --exhaust 16 --energy_range 4
+      ```
+      *Shifts the docking grid center by +1.5 Å in X, -0.5 Å in Y, and +3.0 Å in Z.*
+
+    - **Partial Offset** (only Y and Z):
+      ```bash
+      python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf --tol_x 2 --tol_y 2 --tol_z 2 --offset_y -0.5 --offset_z 3.0 --pckt 1 --exhaust 16 --energy_range 4
+      ```
+      *Shifts the docking grid center by -0.5 Å in Y and +3.0 Å in Z. X-axis remains unshifted.*
+
+    - **No Offset**:
+      ```bash
+      python3 init_docking.py --pdb_ids receptors.csv --ligands ligand_file.sdf --tol_x 2 --tol_y 2 --tol_z 2 --pckt 1 --exhaust 16 --energy_range 4
+      ```
+      *Uses the docking grid center as determined by P2Rank without any shifts.*
 
 ## SLURM Configuration
+
 The repository includes a sample SLURM script (`start_docking.sh`) optimized for the docking pipeline. Key configurations include:
 - Single task allocation (`#SBATCH --ntasks=1`).
 - Infinite runtime (`#SBATCH --time=INFINITE`).
@@ -226,10 +262,13 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 ## Input Parameters
 - `--pdb_ids`: CSV file with receptor PDB codes.
 - `--ligands`: SDF or MOL2 file containing ligands.
-- `--tol_x`, `--tol_y`, `--tol_z`: Docking box tolerances in Ångströms to expand the docking pocket dimensions along the X, Y, and Z axes respectively (default: 0 for each).
+- `--tol_x`, `--tol_y`, `--tol_z`: Docking box tolerances in Ångströms to expand the docking pocket dimensions along the X, Y, and Z axes respectively (default: 0.0 for each).
+- `--offset_x`: Offset in Ångströms to shift the center of the docking grid box along the X-axis (optional, default: 0.0).
+- `--offset_y`: Offset in Ångströms to shift the center of the docking grid box along the Y-axis (optional, default: 0.0).
+- `--offset_z`: Offset in Ångströms to shift the center of the docking grid box along the Z-axis (optional, default: 0.0).
 - `--pckt`: Pocket number from P2Rank predictions (default: 1).
-- `--exhaust`: Docking thoroughness (default: 20).
-- `--energy_range`: Energy range for docking poses (default: 2 kcal/mol).
+- `--exhaust`: Docking thoroughness (default: 16).
+- `--energy_range`: Energy range for docking poses (default: 4 kcal/mol).
 
 ## Outputs
 1. **Results Organized by Receptor**:
@@ -239,7 +278,7 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
      - `<PDB_ID>_<ligand_name>_docking.pse`: PyMOL session files including the docking grid and XYZ axes.
    - `03_ligands_PDBQT/`:
      - All docked ligand `.pdbqt` files copied here.
-   
+
 2. **Reports**:
    - `<PDB_ID>_results.html`: Summarized docking results with interactive visualizations and links to PyMOL session files.
    - `<PDB_ID>_results_in_CSV.csv`: CSV file containing ligand name, affinity, and SMILES.
@@ -252,12 +291,13 @@ The repository includes a sample SLURM script (`start_docking.sh`) optimized for
 - Ensure all dependencies are correctly installed and configured.
 - The visualizations now include the docking grid and XYZ axes for improved spatial orientation.
 - PyMOL session files are provided for interactive exploration of docking results.
-- The single `--tol` argument has been replaced with three independent arguments `--tol_x`, `--tol_y`, and `--tol_z` for finer control over the docking box dimensions.
+- The tolerance arguments `--tol_x`, `--tol_y`, and `--tol_z` allow independent control over the docking box dimensions along each respective axis.
+- The offset arguments `--offset_x`, `--offset_y`, and `--offset_z` allow independent shifting of the docking grid center along each respective axis. Unspecified offsets default to `0.0`, meaning no shift along that axis.
 - Follow the user manual (`User_Guide_Docking_System_ENG.html`) for detailed steps.
 
 For more details, refer to the [Installation Guide](manuals/Installation_Guide_ENG.html).
 
-# Acknowledgments
+## Acknowledgments
 
 - [AutoDock Vina](http://vina.scripps.edu/)
 - [P2Rank](https://github.com/rdk/p2rank)

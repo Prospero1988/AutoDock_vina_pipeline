@@ -430,7 +430,6 @@ def sanitize_ligand_name(name):
         sanitized_name = "ligand_unnamed"
     return sanitized_name
 
-# Function definitions (outside of the main function and loops)
 
 @logger_decorator
 def download_pdb(pdb_id, download_dir):
@@ -467,12 +466,26 @@ def download_pdb(pdb_id, download_dir):
     
     return expected_filename, protein_name
 
+
 @logger_decorator
 def fix_pdb(input_pdb, output_pdb, ph=7.4):
     try:
         fixer = PDBFixer(filename=input_pdb)
 
-        # Get all chains and their residue counts using chain indices
+        # Removal of heterogeneities (including water)
+        fixer.removeHeterogens(keepWater=False)
+
+        # Finding the missing residuals
+        fixer.findMissingResidues()
+
+        # Finding the missing atoms and adding them
+        fixer.findMissingAtoms()
+        fixer.addMissingAtoms()
+
+        # Adding missing protons
+        fixer.addMissingHydrogens(ph)
+
+        # Obtain a list of strings after removing heterogeneities
         chain_residue_counts = {}
         chain_list = list(fixer.topology.chains())
         for index, chain in enumerate(chain_list):
@@ -484,37 +497,36 @@ def fix_pdb(input_pdb, output_pdb, ph=7.4):
         if not chain_residue_counts:
             raise ValueError("No chains found in the PDB structure.")
 
-        # Decide which chain to keep (chain with the highest number of residues)
+        # Selection of the string with the largest number of residuals
         chain_to_keep_index = max(chain_residue_counts, key=chain_residue_counts.get)
         chain_to_keep_id = chain_list[chain_to_keep_index].id
         logging.info(f"Keeping chain index {chain_to_keep_index} (id '{chain_to_keep_id}') with {chain_residue_counts[chain_to_keep_index]} residues.")
         print(f"Keeping chain index {chain_to_keep_index} (id '{chain_to_keep_id}') with {chain_residue_counts[chain_to_keep_index]} residues.")
 
-        # Remove all other chains by their indices
+        # Deletion of all other chains
         chains_to_remove = [i for i in range(len(chain_list)) if i != chain_to_keep_index]
         fixer.removeChains(chains_to_remove)
 
-        # Remove heterogens (including water)
-        fixer.removeHeterogens(keepWater=False)
-
-        # Find missing residues
-        fixer.findMissingResidues()
-
-        # Find missing atoms and add them
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
-
-        # Add missing hydrogens
-        fixer.addMissingHydrogens(ph)
-
-        # Save the fixed PDB file
+        # Saving the repaired PDB file
         with open(output_pdb, 'w') as outfile:
             PDBFile.writeFile(fixer.topology, fixer.positions, outfile)
         logging.info(f"Fixed PDB saved as {output_pdb}")
+
+        # Checking whether the file contains atoms
+        parser = PDB.PDBParser(QUIET=True)
+        structure = parser.get_structure('fixed', output_pdb)
+        atom_count = len(list(structure.get_atoms()))
+        if atom_count == 0:
+            raise ValueError("Fixed PDB has no atoms after processing.")
+        else:
+            logging.info(f"Fixed PDB contains {atom_count} atoms.")
+            print(f"Fixed PDB contains {atom_count} atoms.")
+
     except Exception as e:
         logging.error(f"Error in fixing PDB: {e}")
         print(f"Error in fixing PDB: {e}")
         raise
+
 
 @logger_decorator
 def prepare_receptor(input_pdb, output_pdbqt):
@@ -697,34 +709,30 @@ def add_axes(center=(0, 0, 0), length=10.0, radius=0.1, offset=(15, 15, 15)):
     axes = [
         # X-axis (red)
         CYLINDER, new_center[0], new_center[1], new_center[2], new_center[0] + length, new_center[1], new_center[2], radius,
-        1.0, 0.0, 0.0,  # Kolor początkowy (czerwony)
-        1.0, 0.0, 0.0,  # Kolor końcowy (czerwony)
+        1.0, 0.0, 0.0,  # Initial colour (red)
+        1.0, 0.0, 0.0,  # Final colour (red)
         # Y-axis (green)
         CYLINDER, new_center[0], new_center[1], new_center[2], new_center[0], new_center[1] + length, new_center[2], radius,
-        0.0, 1.0, 0.0,  # Kolor początkowy (zielony)
-        0.0, 1.0, 0.0,  # Kolor końcowy (zielony)
+        0.0, 1.0, 0.0,  # Initial colour (green)
+        0.0, 1.0, 0.0,  # Final colour (green)
         # Z-axis (blue)
         CYLINDER, new_center[0], new_center[1], new_center[2], new_center[0], new_center[1], new_center[2] + length, radius,
-        0.0, 0.0, 1.0,  # Kolor początkowy (niebieski)
-        0.0, 0.0, 1.0   # Kolor końcowy (niebieski)
+        0.0, 0.0, 1.0,  # Initial colour (blue)
+        0.0, 0.0, 1.0   # Final colour (blue)
     ]
 
-    # Załaduj osie jako obiekt CGO
+    # Load the axes as a CGO object
     cmd.load_cgo(axes, "axes")
 
-    # Tworzenie pseudoatomów na końcach osi
+    # Creation of pseudo-atoms at the ends of the axes
     cmd.pseudoatom(object='axis_x_end', pos=(new_center[0] + length, new_center[1], new_center[2]))
     cmd.pseudoatom(object='axis_y_end', pos=(new_center[0], new_center[1] + length, new_center[2]))
     cmd.pseudoatom(object='axis_z_end', pos=(new_center[0], new_center[1], new_center[2] + length))
 
-    # Etykietowanie pseudoatomów
+    # Labelling of pseudo-atoms
     cmd.label('axis_x_end', '"X"')
     cmd.label('axis_y_end', '"Y"')
     cmd.label('axis_z_end', '"Z"')
-
-    # Opcjonalnie, ukrycie pseudoatomów
-    # cmd.hide('everything', 'axis_x_end axis_y_end axis_z_end')
-
 
     # Optionally, hide the pseudoatoms (uncomment if desired)
     #cmd.hide('everything', 'axis_x_end axis_y_end axis_z_end')
@@ -733,47 +741,48 @@ def add_axes(center=(0, 0, 0), length=10.0, radius=0.1, offset=(15, 15, 15)):
 @logger_decorator
 def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, receptor_name, ligand_name, center, size, offset=(15, 15, 15)):
     try:
-        # Załaduj struktury do PyMOL z plików PDBQT (zawierających ładunki)
+        # Load structures into PyMOL from PDBQT files (containing payloads)
         cmd.load(receptor_pdbqt, 'receptor')
         cmd.load(output_pdbqt, 'ligand')
 
-        # Dodaj atomy wodoru (jeśli nie są obecne)
+        # Add hydrogen atoms (if not present)
         cmd.h_add('receptor')
         cmd.h_add('ligand')
 
-        # Ustaw kolory receptor i ligandu
+        # Set the colours of the receptor and ligand
         cmd.color('cyan', 'receptor')
         cmd.color('red', 'ligand')
 
-        # Ustaw reprezentacje
+        # Set up representations
         cmd.show('cartoon', 'receptor')
         cmd.show('sticks', 'ligand')
 
-        # Ukryj atomy wodoru w wizualizacji
+        # Hide hydrogen atoms in the visualisation
         cmd.hide('sticks', '(elem H)')
 
-        # Dodaj osie współrzędnych z przesunięciem
+        # Add coordinate axes with offset
         add_axes(center=center, length=10.0, radius=0.3, offset=offset)
 
-        # Rysuj box dokowania
+        # Draw docking box
         draw_docking_box(center, size)
 
-        # Dostosuj wizualizację i ustaw kamerę
+        # Adjust the visualisation and set up the camera
         set_visualization_and_focus()
 
-        # Zapisz obrazek jako PNG
+        # Save image as PNG
         image_path = os.path.join(output_folder, f"{receptor_name}_{ligand_name}_docking.png")
         cmd.ray(1920, 1080)
         cmd.png(image_path, width=1920, height=1080, dpi=300)
         logging.info(f"Visualization saved: {image_path}")
-
-        # Zapisz sesję PyMOL
+        
+        # Save the PyMOL session
         session_path = os.path.join(output_folder, f"{receptor_name}_{ligand_name}_docking.pse")
         cmd.save(session_path)
         logging.info(f"PyMOL session saved: {session_path}")
 
-        # Wyczyść sesję PyMOL
+        # Clear the PyMOL session
         cmd.delete('all')
+        
     except Exception as e:
         logging.error(f"Error in generating visualization: {e}")
         print(f"Error in generating visualization: {e}")
@@ -783,6 +792,7 @@ def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, recepto
 def draw_docking_box(center, size):
     x, y, z = center
     sx, sy, sz = size
+    
     # Calculate the min and max coordinates
     min_x = x - sx / 2
     max_x = x + sx / 2
@@ -795,7 +805,7 @@ def draw_docking_box(center, size):
     
     box = [
         LINEWIDTH, 1.0,
-        COLOR, 1.0, 1.0, 0.0,  # Yellow color
+        COLOR, 1.0, 0.0, 1.0,  # Magenta color
         BEGIN, LINES,
         VERTEX, min_x, min_y, min_z,
         VERTEX, max_x, min_y, min_z,
@@ -840,12 +850,27 @@ def draw_docking_box(center, size):
 
 def set_visualization_and_focus():
     cmd.show('cartoon', 'all')
-    cmd.bg_color('white')
-    cmd.center('ligand')  # Centrowanie na ligandzie
-    cmd.zoom('ligand', buffer=1.0)  # Powiększenie na ligandę
-    cmd.move('z', -50)  # Przesunięcie kamery wzdłuż osi Z
+    cmd.bg_color('black')
+    cmd.center('ligand')  # Centring on the ligand
+    cmd.zoom('ligand', buffer=50)  # Zoom in on the ligand
+    cmd.move('z', 120)  # Move the camera along the Z axis
 
-    # Usunięcie ustawień przycinania
+    cmd.turn('x', -5)
+    cmd.turn('y', -5)
+
+    # Set the receptor colour to light blue
+    cmd.color('skyblue', 'receptor')
+
+    # Set the ligand colour to orange
+    cmd.color('orange', 'ligand')
+
+    # Set the axis colour to a contrasting colour
+    cmd.color('white', 'axes')
+    cmd.color('red', 'axis_x_end')
+    cmd.color('green', 'axis_y_end')
+    cmd.color('blue', 'axis_z_end')
+
+    # Delete clipping settings
     cmd.set('ray_trace_mode', 1)
     cmd.set('orthoscopic', 1)
     cmd.set('ray_trace_frames', 1)
@@ -900,7 +925,7 @@ def draw_molecule_to_file(mol, image_filename):
 @logger_decorator
 def generate_html_results(html_file, receptor_name, ligands_file, ligand_results, predictions_csv, protein_name, pckt, receptor_pdbqt):
     try:
-        # Wczytaj dane z P2Rank i usuń nadmiarowe spacje
+        # Load data from P2Rank and remove redundant spaces
         p2rank_csv = predictions_csv
         df_p2rank = pd.read_csv(p2rank_csv)
         df_p2rank.columns = df_p2rank.columns.str.strip()
@@ -908,8 +933,8 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         df_p2rank['score'] = df_p2rank['score'].astype(float).map("{:.2f}".format)
         df_p2rank['probability'] = df_p2rank['probability'].astype(float).map("{:.2f}".format)
 
-        # Sortowanie wyników ligandów według 'affinity' od najniższej do najwyższej
-        # Ligandy z affinity=None zostaną umieszczone na końcu
+        # Sorting of ligand results by 'affinity' from lowest to highest
+        # Ligands with affinity=None will be placed at the end
         ligand_results_sorted = sorted(
             ligand_results,
             key=lambda x: (x['affinity'] is None, x['affinity'] if x['affinity'] is not None else float('inf'))
@@ -926,35 +951,35 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('th { background-color: #f2f2f2; }\n')
             hf.write('img { display: block; margin: auto; }\n')
             hf.write('.probability { background-color: #ffecd9; } /* Pastel orange */\n')
-            hf.write('.docking-energy { background-color: #dfffe0; } /* Pastel green */\n')  # Stylizacja dla energii dokowania
-            # Stylizacja dla kolumny "Docking Results" w pierwszej tabeli
+            hf.write('.docking-energy { background-color: #dfffe0; } /* Pastel green */\n') 
+            # Styling for the 'Docking Results' column in the first table
             hf.write('td:nth-child(6), th:nth-child(6) {\n')
-            hf.write('  max-width: 200px;\n')  # Maksymalna szerokość
-            hf.write('  word-wrap: break-word;\n')  # Zawijanie tekstu
-            hf.write('  white-space: normal;\n')  # Normalna biała spacja
-            hf.write('  text-align: left;\n')  # Wyrównanie do lewej
+            hf.write('  max-width: 200px;\n')  
+            hf.write('  word-wrap: break-word;\n')  
+            hf.write('  white-space: normal;\n')  
+            hf.write('  text-align: center;\n')  
             hf.write('}\n')
-            # Stylizacja dla kolumny "score" w drugiej tabeli z dodatkowym marginesem
+            # Styling for 'score' column in second table with additional margin
             hf.write('.p2rank-table td:nth-child(3), .p2rank-table th:nth-child(3) {\n')
-            hf.write('  white-space: nowrap;\n')  # Dopasowanie szerokości do zawartości
-            hf.write('  padding-left: 15px;\n')  # Lewy padding
-            hf.write('  padding-right: 15px;\n')  # Prawy padding
+            hf.write('  white-space: nowrap;\n')  
+            hf.write('  padding-left: 15px;\n') 
+            hf.write('  padding-right: 15px;\n')  
             hf.write('}\n')
-            # Stylizacja dla kolumny "residue_ids" w drugiej tabeli
+            # Styling for the residue_ids column in the second table
             hf.write('.p2rank-table td:nth-child(5), .p2rank-table th:nth-child(5) {\n')
-            hf.write('  max-width: 400px;\n')  # Ograniczenie szerokości kolumny
-            hf.write('  word-wrap: break-word;\n')  # Zawijanie tekstu w kolumnie
-            hf.write('  white-space: normal;\n')  # Normalna biała spacja dla zawijania
-            hf.write('  padding: 15px;\n')  # Wewnętrzne marginesy
-            hf.write('  text-align: left;\n')  # Opcjonalnie: wyrównanie tekstu do lewej
+            hf.write('  max-width: 400px;\n')  
+            hf.write('  word-wrap: break-word;\n')  
+            hf.write('  white-space: normal;\n') 
+            hf.write('  padding: 15px;\n') 
+            hf.write('  text-align: left;\n')
             hf.write('}\n')
             hf.write('</style>\n')
 
             hf.write('</head>\n')
             hf.write('<body>\n')
 
-            # Nagłówek tabeli z wynikami dokowania
-            receptor_pdbqt_name = os.path.basename(receptor_pdbqt)
+            # Docking results table header
+            receptor_pdbqt = os.path.basename(receptor_pdbqt)
             header_text = (
                 f'Docking results for receptor with PDB code: '
                 f'<span style="color: red;">{receptor_name}</span></br>'
@@ -972,7 +997,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('</div>')
             hf.write('</br>')
 
-            # Pierwsza tabela: Wyniki dokowania (posortowane według energii dokowania)
+            # First table: Docking results (sorted by docking energy)
             hf.write('<table>\n')
             hf.write(
                 '<tr>'
@@ -980,7 +1005,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                 '<th>Compound Name</th>'
                 '<th>Structure</th>'
                 '<th>Docking Image</th>'
-                '<th class="docking-energy">Docking Energy<br/>(kcal/mol)</th>'
+                '<th class="docking-energy">Affinity<br/>(kcal/mol)</th>'
                 '<th>Docking Results</th>'
                 '<th>PyMOL Session</th>'
                 '</tr>\n'
@@ -994,29 +1019,26 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                     affinity_str = f"{affinity:.2f}"
                 else:
                     affinity_str = 'N/A'
-                # Ścieżka do pliku wynikowego PDBQT
+                # Path to PDBQT output file
                 output_pdbqt_path = os.path.relpath(result['output_pdbqt'], os.path.dirname(html_file))
                 link_text = os.path.basename(result['output_pdbqt'])
-                # Ścieżka do pliku sesji PyMOL
+                # Path to PyMOL session file
                 pymol_session_path = os.path.relpath(result['pymol_session'], os.path.dirname(html_file))
                 pymol_session_link = os.path.basename(result['pymol_session'])
 
                 hf.write('<tr>\n')
-                hf.write(f'<td>{idx}</td>\n')  # 1. kolumna: Numer
-                hf.write(f'<td>{name}</td>\n')  # 2. kolumna: Nazwa związku
-                hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n')  # 3. kolumna: Struktura (SVG)
-                # 4. kolumna: Obrazek z dokowaniem
+                hf.write(f'<td>{idx}</td>\n')  
+                hf.write(f'<td>{name}</td>\n')  
+                hf.write(f'<td><img src="{image_path}" alt="{name}" width="400"/></td>\n') 
                 hf.write(
                     f'<td><a href="{docking_image_path}" target="_blank">'
                     f'<img src="{docking_image_path}" alt="Docking Image" style="max-width: 150px; max-height: 150px;"></a></td>\n'
                 )
-                hf.write(f'<td class="docking-energy">{affinity_str}</td>\n')  # 5. kolumna: Energia dokowania
-                # 6. kolumna: Wyniki dokowania (plik PDBQT)
+                hf.write(f'<td class="docking-energy">{affinity_str}</td>\n')
                 hf.write(
                     f'<td><a href="{output_pdbqt_path}" download="{link_text}" type="application/octet-stream">'
                     f'{link_text}</a></td>\n'
                 )
-                # 7. kolumna: Sesja PyMOL (.pse)
                 hf.write(
                     f'<td><a href="{pymol_session_path}" download="{pymol_session_link}" '
                     f'type="application/octet-stream">{pymol_session_link}</a></td>\n'
@@ -1025,7 +1047,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('</table>\n')
             hf.write('</br>')
 
-            # Link do szczegółowych wyników
+            # Link to detailed results
             results_file = f"{receptor_name}_results.txt"
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(
@@ -1035,12 +1057,12 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
             hf.write('</p>\n')
             hf.write('</br></br>')
 
-            # Nagłówek dla tabeli z danymi P2Rank
+            # Header for P2Rank data table
             p2rank_header = f'P2RANK: identified docking pockets for receptor with PDB code: {receptor_name}'
             hf.write(f'<h3 style="text-align: center; margin-top: 20px;">{p2rank_header}</h3>\n')
 
-            # Druga tabela: Dane z P2Rank
-            hf.write('<table class="p2rank-table">\n')  # Dodanie klasy "p2rank-table"
+            # Druga tabela: dane P2Rank
+            hf.write('<table class="p2rank-table">\n')
             hf.write('<tr>')
             for col in ['name', 'rank', 'score', 'probability', 'residue_ids']:
                 hf.write(f'<th>{col}</th>')
@@ -1056,7 +1078,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
                 hf.write('</tr>\n')
             hf.write('</table>\n')
             hf.write('</br>')
-            # Link do szczegółowych wyników P2Rank
+            # Link to detailed P2Rank results
             residues_csv_file = os.path.join('01_p2rank_output', f'{receptor_name}_fixed.pdb_residues.csv')
             hf.write('<p style="text-align: center; margin-top: 20px;">\n')
             hf.write(
@@ -1067,7 +1089,7 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
 
             hf.write('</br></br>')
 
-            # Informacje o autorze na końcu
+            # Author information at the end
             hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
             hf.write('Docking system based on <b>AutoDock Vina v.1.2.5</b> and <b>P2RANK v.2.4.2</b><br/>\n')
             hf.write('<b>Author:</b> Arkadiusz Leniak <b>email:</b> arkadiusz.leniak@gmail.com<br/>\n')
