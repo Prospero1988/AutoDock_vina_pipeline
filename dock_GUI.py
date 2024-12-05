@@ -8,25 +8,26 @@ import zipfile
 import bcrypt
 import threading
 from http.server import SimpleHTTPRequestHandler, HTTPServer
+from functools import partial
 
 # Set page configuration
 st.set_page_config(page_title="Docking Program", layout="centered")
 
-# Global variables for HTTP server
+# Global settings for HTTP server
 HTTP_SERVER_PORT = 8001  # You can change this port if needed
-HTTP_SERVER_THREAD = None
+HTTPD = None  # Global HTTP Server instance
 
 def start_http_server(directory, port=HTTP_SERVER_PORT):
-    os.chdir(directory)
-    handler = SimpleHTTPRequestHandler
-    httpd = HTTPServer(('0.0.0.0', port), handler)
-    httpd.serve_forever()
+    global HTTPD
+    handler = partial(SimpleHTTPRequestHandler, directory=directory)
+    HTTPD = HTTPServer(('0.0.0.0', port), handler)
+    HTTPD.serve_forever()
 
 def stop_http_server():
-    global HTTP_SERVER_THREAD
-    if HTTP_SERVER_THREAD is not None:
-        # There's no straightforward way to stop HTTPServer in this context
-        pass  # You might need to implement a more complex solution to stop the server
+    global HTTPD
+    if HTTPD is not None:
+        HTTPD.shutdown()
+        HTTPD = None
 
 # Ensure 'static' directory exists and clear 'static' when app starts
 if os.path.exists('static'):
@@ -50,7 +51,6 @@ def hash_password(password):
 
 def check_credentials(username, password):
     try:
-        # Load credentials from passwords.pw
         credentials = pd.read_csv('passwords.pw')
         user_row = credentials[credentials['user'] == username]
         if not user_row.empty:
@@ -87,8 +87,6 @@ def add_new_user(username, hashed_password):
         st.error(f"Error adding new user: {e}")
 
 def main():
-    global HTTP_SERVER_THREAD
-
     # Initialize session state variables
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
@@ -97,7 +95,9 @@ def main():
     if 'module' not in st.session_state:
         st.session_state.module = ''
     if 'progress' not in st.session_state:
-        st.session_state.progress = 0  # Reset progress when returning to menu
+        st.session_state.progress = 0
+    if 'http_server_thread' not in st.session_state:
+        st.session_state['http_server_thread'] = None
 
     # Login screen
     if not st.session_state.logged_in:
@@ -127,7 +127,6 @@ def main():
             if st.button("Return to Log in"):
                 reset_state()
                 st.rerun()
-            # Add 'Return to Log in' button after registration
             if 'registration_successful' in st.session_state and st.session_state.registration_successful:
                 if st.button("Return to Log in"):
                     st.session_state.show_register = False
@@ -152,7 +151,6 @@ def main():
                 else:
                     st.error("Wrong username or password. Please try again.")
 
-            # Information text in a frame with max-width 300px
             st.markdown(
                 '<div style="max-width: 300px; border: 1px solid; padding: 10px;">'
                 'If you want to add a new user, remember that the login can only consist of lowercase letters without additional characters or numbers. The password can contain only basic letters and numbers.'
@@ -195,7 +193,7 @@ def main():
                             shutil.rmtree('static')
                         os.makedirs('static')
                         # Stop the HTTP server if running
-                        # Note: Implement stop_http_server() if needed
+                        stop_http_server()
                         reset_state()
                         st.session_state.logged_in = False
                         st.rerun()
@@ -206,23 +204,14 @@ def main():
                         st.rerun()
                 st.write(" ")  # Add some space
 
-        # DOCKING Module
         elif st.session_state.module == 'DOCKING':
             docking_module()
-
-        # QUEUE Module
         elif st.session_state.module == 'QUEUE':
             queue_module()
-
-        # DOWNLOAD RESULTS Module
         elif st.session_state.module == 'DOWNLOAD RESULTS':
             download_results_module()
-
-        # DELETE RESULTS Module
         elif st.session_state.module == 'DELETE RESULTS':
             delete_results_module()
-
-        # SHOW RESULTS Module
         elif st.session_state.module == 'SHOW RESULTS':
             results_module()
 
@@ -502,17 +491,13 @@ def queue_module():
     st.title("QUEUE Module")
     st.write("Current SLURM queue:")
 
-    # Function to display the queue
     def display_queue():
         try:
-            # Run the SLURM queue command with custom format
             cmd = ['squeue', '-r', '-o', '%i,%u,%j,%T,%M,%S', '--noheader']
             result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
             output = result.stdout.strip().split('\n')
-            # Split each line into fields
             rows = [line.strip().split(',') for line in output if line.strip()]
             if rows:
-                # Create DataFrame
                 df = pd.DataFrame(rows, columns=['JobID', 'User', 'JobName', 'State', 'TimeUsed', 'StartTime'])
                 st.table(df)
             else:
@@ -535,7 +520,6 @@ def queue_module():
 def download_results_module():
     st.title("DOWNLOAD RESULTS Module")
 
-    # List projects belonging to the user
     dock_folder = '/home/docking_machine/dock'
     user_prefix = f"{st.session_state.username}_"
     user_projects = [f for f in os.listdir(dock_folder) if f.startswith(user_prefix)]
@@ -553,9 +537,11 @@ def download_results_module():
 
     if selected_projects:
         if st.button("Download selected projects"):
-            # Create a zip archive
             zip_filename = f"docking_results_{st.session_state.username}.zip"
             zip_path = os.path.join('/tmp', zip_filename)
+            dock_folder = '/home/docking_machine/dock'
+            user_prefix = f"{st.session_state.username}_"
+
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for proj in selected_projects:
                     proj_folder = os.path.join(dock_folder, user_prefix + proj)
@@ -564,7 +550,7 @@ def download_results_module():
                             file_path = os.path.join(foldername, filename)
                             arcname = os.path.relpath(file_path, dock_folder)
                             zipf.write(file_path, arcname)
-            # Provide the zip file for download
+
             with open(zip_path, 'rb') as f:
                 st.download_button(
                     label="Download ZIP",
@@ -575,7 +561,6 @@ def download_results_module():
     else:
         st.info("No projects selected.")
 
-    # Add 'Return to MENU' button at the bottom
     st.markdown("<hr>", unsafe_allow_html=True)
     if st.button("Return to MENU", key='return_to_menu_download'):
         reset_state()
@@ -584,7 +569,6 @@ def download_results_module():
 def delete_results_module():
     st.title("DELETE RESULTS Module")
 
-    # List projects belonging to the user
     dock_folder = '/home/docking_machine/dock'
     user_prefix = f"{st.session_state.username}_"
     user_projects = [f for f in os.listdir(dock_folder) if f.startswith(user_prefix)]
@@ -607,7 +591,8 @@ def delete_results_module():
                 st.rerun()
         else:
             if st.button("Confirm Deletion", key='confirm_deletion'):
-                # Delete the selected projects
+                dock_folder = '/home/docking_machine/dock'
+                user_prefix = f"{st.session_state.username}_"
                 for proj in selected_projects:
                     proj_folder = os.path.join(dock_folder, user_prefix + proj)
                     try:
@@ -615,7 +600,6 @@ def delete_results_module():
                         st.success(f"Project '{proj}' has been deleted.")
                     except Exception as e:
                         st.error(f"Error deleting '{proj}': {e}")
-                # Refresh the list of projects
                 del st.session_state.confirm_delete
                 st.rerun()
             else:
@@ -623,19 +607,17 @@ def delete_results_module():
     else:
         st.info("No projects selected.")
 
-    # Add 'Return to MENU' button at the bottom
     st.markdown("<hr>", unsafe_allow_html=True)
     if st.button("Return to MENU", key='return_to_menu_delete'):
         reset_state()
         st.rerun()
 
-
 def results_module():
-    global HTTP_SERVER_THREAD
-
     st.title("SHOW RESULTS Module")
 
-    # List projects belonging to the user
+    if 'http_server_thread' not in st.session_state:
+        st.session_state['http_server_thread'] = None
+
     dock_folder = '/home/docking_machine/dock'
     user_prefix = f"{st.session_state.username}_"
     user_projects = [f for f in os.listdir(dock_folder) if f.startswith(user_prefix)]
@@ -652,7 +634,6 @@ def results_module():
     selected_project = st.selectbox("Your Projects", project_names, key='selected_project')
 
     if selected_project:
-        # Read receptors.csv in the selected project
         project_folder = os.path.join(dock_folder, user_prefix + selected_project)
         receptors_csv_path = os.path.join(project_folder, 'receptors', 'receptors.csv')
         if os.path.exists(receptors_csv_path):
@@ -669,19 +650,14 @@ def results_module():
             if selected_receptor:
                 receptor_folder = os.path.join(project_folder, selected_receptor)
                 if os.path.exists(receptor_folder):
-                    # Check for HTML file
                     html_files = [f for f in os.listdir(receptor_folder) if f.endswith('.html')]
                     if html_files:
                         html_file_name = html_files[0]
-                        html_file_path = os.path.join(receptor_folder, html_file_name)
 
                         if st.button("SHOW INTERACTIVE RESULTS"):
-                            # Copy receptor folder to static/<selected_receptor>
                             static_receptor_folder = os.path.join('static', selected_receptor)
-                            # Remove existing files in the static folder
                             if os.path.exists(static_receptor_folder):
                                 shutil.rmtree(static_receptor_folder)
-                            # Copy files
                             try:
                                 shutil.copytree(receptor_folder, static_receptor_folder)
                             except Exception as e:
@@ -689,23 +665,17 @@ def results_module():
                                 return
 
                             # Start HTTP server if not already running
-                            if HTTP_SERVER_THREAD is None or not HTTP_SERVER_THREAD.is_alive():
-                                HTTP_SERVER_THREAD = threading.Thread(target=start_http_server, args=('static',), daemon=True)
-                                HTTP_SERVER_THREAD.start()
+                            if st.session_state['http_server_thread'] is None or not st.session_state['http_server_thread'].is_alive():
+                                st.session_state['http_server_thread'] = threading.Thread(target=start_http_server, args=('static',), daemon=True)
+                                st.session_state['http_server_thread'].start()
 
-                            # Generate URL to the HTML file
-                            html_url = f"http://YOUR_SERVER_IP:{HTTP_SERVER_PORT}/{selected_receptor}/{html_file_name}"
-                            # Replace YOUR_SERVER_IP with your actual IP address
-                            html_url = html_url.replace('YOUR_SERVER_IP', '172.22.31.82')
-
-                            # Provide the link to the user
+                            html_url = f"http://172.22.31.82:{HTTP_SERVER_PORT}/{selected_receptor}/{html_file_name}"
                             st.markdown(f'<a href="{html_url}" target="_blank">Open Interactive Results in New Tab</a>', unsafe_allow_html=True)
                     else:
                         st.error("No HTML file found in the receptor's folder.")
 
                     st.markdown("<hr>", unsafe_allow_html=True)
 
-                    # Check for CSV file
                     csv_files = [f for f in os.listdir(receptor_folder) if f.endswith('.csv')]
                     if csv_files:
                         csv_file_path = os.path.join(receptor_folder, csv_files[0])
@@ -724,9 +694,7 @@ def results_module():
         else:
             st.error("No receptors found in receptors.csv.")
 
-    # Add 'Return to MENU' button at the bottom
     if st.button("Return to MENU", key='return_to_menu_results'):
-        # Clean up static directory
         if os.path.exists('static'):
             shutil.rmtree('static')
         os.makedirs('static')
