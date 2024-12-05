@@ -6,11 +6,32 @@ import pandas as pd
 import subprocess
 import zipfile
 import bcrypt
-import streamlit.components.v1 as components
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 # Set page configuration
-st.set_page_config(page_title="Docking Program", layout="wide")
+st.set_page_config(page_title="Docking Program", layout="centered")
 
+# Global variables for HTTP server
+HTTP_SERVER_PORT = 8001  # You can change this port if needed
+HTTP_SERVER_THREAD = None
+
+def start_http_server(directory, port=HTTP_SERVER_PORT):
+    os.chdir(directory)
+    handler = SimpleHTTPRequestHandler
+    httpd = HTTPServer(('0.0.0.0', port), handler)
+    httpd.serve_forever()
+
+def stop_http_server():
+    global HTTP_SERVER_THREAD
+    if HTTP_SERVER_THREAD is not None:
+        # There's no straightforward way to stop HTTPServer in this context
+        pass  # You might need to implement a more complex solution to stop the server
+
+# Ensure 'static' directory exists and clear 'static' when app starts
+if os.path.exists('static'):
+    shutil.rmtree('static')
+os.makedirs('static')
 
 def validate_project_name(name):
     # Replace spaces with underscores
@@ -21,13 +42,11 @@ def validate_project_name(name):
     else:
         return None
 
-
 def hash_password(password):
     # Generate salt and hash the password
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')  # Store as string
-
 
 def check_credentials(username, password):
     try:
@@ -44,14 +63,12 @@ def check_credentials(username, password):
         return False
     return False
 
-
 def username_exists(username):
     try:
         credentials = pd.read_csv('passwords.pw')
         return username in credentials['user'].values
     except Exception:
         return False
-
 
 def add_new_user(username, hashed_password):
     try:
@@ -69,8 +86,9 @@ def add_new_user(username, hashed_password):
     except Exception as e:
         st.error(f"Error adding new user: {e}")
 
-
 def main():
+    global HTTP_SERVER_THREAD
+
     # Initialize session state variables
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
@@ -104,7 +122,17 @@ def main():
                     hashed_password = hash_password(new_password)
                     add_new_user(new_username, hashed_password)
                     st.success("User registered successfully. You can now log in.")
+                    st.session_state.registration_successful = True
+            st.write(" ")  # Add more space        
+            if st.button("Return to Log in"):
+                reset_state()
+                st.rerun()
+            # Add 'Return to Log in' button after registration
+            if 'registration_successful' in st.session_state and st.session_state.registration_successful:
+                if st.button("Return to Log in"):
                     st.session_state.show_register = False
+                    del st.session_state.registration_successful
+                    st.rerun()
         else:
             st.title("Docking Program Login")
             st.write("Please enter your username and password.")
@@ -112,35 +140,71 @@ def main():
             username_input = st.text_input("Username")
             password_input = st.text_input("Password", type='password')
 
-            login_col, register_col = st.columns(2)
-            with login_col:
-                if st.button("Login"):
-                    if check_credentials(username_input, password_input):
-                        st.session_state.logged_in = True
-                        st.session_state.username = username_input
-                        st.rerun()
-                    else:
-                        st.error("Wrong username or password. Please try again.")
-            with register_col:
+            if st.button("Login"):
+                if check_credentials(username_input, password_input):
+                    # Clear 'static' when any user logs in
+                    if os.path.exists('static'):
+                        shutil.rmtree('static')
+                    os.makedirs('static')
+                    st.session_state.logged_in = True
+                    st.session_state.username = username_input
+                    st.rerun()
+                else:
+                    st.error("Wrong username or password. Please try again.")
+
+            # Information text in a frame with max-width 300px
+            st.markdown(
+                '<div style="max-width: 300px; border: 1px solid; padding: 10px;">'
+                'If you want to add a new user, remember that the login can only consist of lowercase letters without additional characters or numbers. The password can contain only basic letters and numbers.'
+                '</div>',
+                unsafe_allow_html=True
+            )
+            st.write(" ")  # Add some space
+
+            # Add 'Add New User' and 'SHOW USERS' buttons below the text
+            col1, col2 = st.columns(2)
+            with col1:
                 if st.button("Add New User"):
                     st.session_state.show_register = True
                     st.rerun()
+            with col2:
+                if st.button("SHOW USERS"):
+                    try:
+                        credentials = pd.read_csv('passwords.pw')
+                        users_list = credentials['user'].tolist()
+                        st.write("Available Users:")
+                        st.write(users_list)
+                    except Exception as e:
+                        st.error(f"Error reading users: {e}")
+
     else:
         # Main Menu
         if st.session_state.module == '':
             st.title(f"Welcome, {st.session_state.username}!")
             st.write("Please select a module to continue:")
-            cols = st.columns(4)
-            modules = ['DOCKING', 'QUEUE', 'DOWNLOAD RESULTS', 'RESULTS']
-            keys = ['docking', 'queue', 'download', 'results']
 
-            for col, module_name, key in zip(cols, modules, keys):
-                with col:
-                    if st.button(module_name, key=key):
+            modules = ['DOCKING', 'QUEUE', 'SHOW RESULTS', 'DOWNLOAD RESULTS', 'DELETE RESULTS', 'LOG OUT']
+            keys = ['docking', 'queue', 'show_results', 'download', 'delete', 'logout']
+
+            st.write(" ")  # Add some space
+            for module_name, key in zip(modules, keys):
+                if st.button(module_name, key=key):
+                    if module_name == 'LOG OUT':
+                        # Clean up static directory
+                        if os.path.exists('static'):
+                            shutil.rmtree('static')
+                        os.makedirs('static')
+                        # Stop the HTTP server if running
+                        # Note: Implement stop_http_server() if needed
+                        reset_state()
+                        st.session_state.logged_in = False
+                        st.rerun()
+                    else:
                         st.session_state.module = module_name
                         if module_name == 'DOCKING':
                             st.session_state.progress = 1
                         st.rerun()
+                st.write(" ")  # Add some space
 
         # DOCKING Module
         elif st.session_state.module == 'DOCKING':
@@ -154,10 +218,13 @@ def main():
         elif st.session_state.module == 'DOWNLOAD RESULTS':
             download_results_module()
 
-        # RESULTS Module
-        elif st.session_state.module == 'RESULTS':
-            results_module()
+        # DELETE RESULTS Module
+        elif st.session_state.module == 'DELETE RESULTS':
+            delete_results_module()
 
+        # SHOW RESULTS Module
+        elif st.session_state.module == 'SHOW RESULTS':
+            results_module()
 
 def docking_module():
     st.title("DOCKING Module")
@@ -394,7 +461,7 @@ def docking_module():
             else:
                 parameters = st.session_state.parameters
                 # Generate start_docking.sh
-                # Use the project name without user prefix for job name
+                # Use the project name with user prefix for job name
                 script_content = f"""#!/bin/bash
 #SBATCH --job-name={st.session_state.username}_{st.session_state.project_name}
 #SBATCH --output=docking_output.log
@@ -431,37 +498,39 @@ python3 init_docking.py --pdb_ids receptors.csv --ligands {st.session_state.liga
                 except Exception as e:
                     st.error(f"Error submitting job: {e}")
 
-    # Add 'Return to MENU' button at the bottom
-    #st.markdown("<hr>", unsafe_allow_html=True)
-   # if st.button("Return to MENU", key='return_to_menu_docking'):
-  #      reset_state()
-   #     st.rerun()
-
-
 def queue_module():
     st.title("QUEUE Module")
     st.write("Current SLURM queue:")
-    try:
-        # Run the SLURM queue command with custom format
-        cmd = ['squeue', '-r', '-o', '%i,%u,%j,%T,%M,%S', '--noheader']
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
-        output = result.stdout.strip().split('\n')
-        # Split each line into fields
-        rows = [line.strip().split(',') for line in output if line.strip()]
-        if rows:
-            # Create DataFrame
-            df = pd.DataFrame(rows, columns=['JobID', 'User', 'JobName', 'State', 'TimeUsed', 'StartTime'])
-            st.table(df)
-        else:
-            st.write("No jobs in the queue.")
-    except Exception as e:
-        st.error(f"Error fetching SLURM queue: {e}")
+
+    # Function to display the queue
+    def display_queue():
+        try:
+            # Run the SLURM queue command with custom format
+            cmd = ['squeue', '-r', '-o', '%i,%u,%j,%T,%M,%S', '--noheader']
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+            output = result.stdout.strip().split('\n')
+            # Split each line into fields
+            rows = [line.strip().split(',') for line in output if line.strip()]
+            if rows:
+                # Create DataFrame
+                df = pd.DataFrame(rows, columns=['JobID', 'User', 'JobName', 'State', 'TimeUsed', 'StartTime'])
+                st.table(df)
+            else:
+                st.write("No jobs in the queue.")
+        except Exception as e:
+            st.error(f"Error fetching SLURM queue: {e}")
+
+    # Display the queue initially
+    display_queue()
+
+    # Add 'REFRESH' button to refresh the queue
+    if st.button("REFRESH"):
+        st.rerun()
 
     # Add 'Return to MENU' button at the bottom
     if st.button("Return to MENU", key='return_to_menu_queue'):
         reset_state()
         st.rerun()
-
 
 def download_results_module():
     st.title("DOWNLOAD RESULTS Module")
@@ -480,52 +549,29 @@ def download_results_module():
         return
 
     st.write("Select projects:")
-    selected_projects = st.multiselect("Your Projects", project_names, key='selected_projects')
+    selected_projects = st.multiselect("Your Projects", project_names, key='selected_projects_download')
 
     if selected_projects:
-        # Buttons for Delete and Download
-        col1, col2 = st.columns(2)
-        with col1:
-            if 'confirm_delete' not in st.session_state:
-                if st.button("Delete selected projects"):
-                    st.session_state.confirm_delete = True
-                    st.rerun()
-            else:
-                if st.button("Confirm Deletion", key='confirm_deletion'):
-                    # Delete the selected projects
-                    for proj in selected_projects:
-                        proj_folder = os.path.join(dock_folder, user_prefix + proj)
-                        try:
-                            shutil.rmtree(proj_folder)
-                            st.success(f"Project '{proj}' has been deleted.")
-                        except Exception as e:
-                            st.error(f"Error deleting '{proj}': {e}")
-                    # Refresh the list of projects
-                    del st.session_state.confirm_delete
-                    st.rerun()
-                else:
-                    st.warning("Press 'Confirm Deletion' to permanently delete selected projects.")
-        with col2:
-            if st.button("Download selected projects"):
-                # Create a zip archive
-                zip_filename = f"docking_results_{st.session_state.username}.zip"
-                zip_path = os.path.join('/tmp', zip_filename)
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for proj in selected_projects:
-                        proj_folder = os.path.join(dock_folder, user_prefix + proj)
-                        for foldername, subfolders, filenames in os.walk(proj_folder):
-                            for filename in filenames:
-                                file_path = os.path.join(foldername, filename)
-                                arcname = os.path.relpath(file_path, dock_folder)
-                                zipf.write(file_path, arcname)
-                # Provide the zip file for download
-                with open(zip_path, 'rb') as f:
-                    st.download_button(
-                        label="Download ZIP",
-                        data=f,
-                        file_name=zip_filename,
-                        mime='application/zip'
-                    )
+        if st.button("Download selected projects"):
+            # Create a zip archive
+            zip_filename = f"docking_results_{st.session_state.username}.zip"
+            zip_path = os.path.join('/tmp', zip_filename)
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for proj in selected_projects:
+                    proj_folder = os.path.join(dock_folder, user_prefix + proj)
+                    for foldername, subfolders, filenames in os.walk(proj_folder):
+                        for filename in filenames:
+                            file_path = os.path.join(foldername, filename)
+                            arcname = os.path.relpath(file_path, dock_folder)
+                            zipf.write(file_path, arcname)
+            # Provide the zip file for download
+            with open(zip_path, 'rb') as f:
+                st.download_button(
+                    label="Download ZIP",
+                    data=f,
+                    file_name=zip_filename,
+                    mime='application/zip'
+                )
     else:
         st.info("No projects selected.")
 
@@ -535,9 +581,59 @@ def download_results_module():
         reset_state()
         st.rerun()
 
+def delete_results_module():
+    st.title("DELETE RESULTS Module")
+
+    # List projects belonging to the user
+    dock_folder = '/home/docking_machine/dock'
+    user_prefix = f"{st.session_state.username}_"
+    user_projects = [f for f in os.listdir(dock_folder) if f.startswith(user_prefix)]
+    project_names = [f.replace(user_prefix, '') for f in user_projects]
+
+    if not project_names:
+        st.info("You have no projects to display.")
+        if st.button("Return to MENU", key='return_to_menu_delete'):
+            reset_state()
+            st.rerun()
+        return
+
+    st.write("Select projects to delete:")
+    selected_projects = st.multiselect("Your Projects", project_names, key='selected_projects_delete')
+
+    if selected_projects:
+        if 'confirm_delete' not in st.session_state:
+            if st.button("Delete selected projects"):
+                st.session_state.confirm_delete = True
+                st.rerun()
+        else:
+            if st.button("Confirm Deletion", key='confirm_deletion'):
+                # Delete the selected projects
+                for proj in selected_projects:
+                    proj_folder = os.path.join(dock_folder, user_prefix + proj)
+                    try:
+                        shutil.rmtree(proj_folder)
+                        st.success(f"Project '{proj}' has been deleted.")
+                    except Exception as e:
+                        st.error(f"Error deleting '{proj}': {e}")
+                # Refresh the list of projects
+                del st.session_state.confirm_delete
+                st.rerun()
+            else:
+                st.warning("Press 'Confirm Deletion' to permanently delete selected projects.")
+    else:
+        st.info("No projects selected.")
+
+    # Add 'Return to MENU' button at the bottom
+    st.markdown("<hr>", unsafe_allow_html=True)
+    if st.button("Return to MENU", key='return_to_menu_delete'):
+        reset_state()
+        st.rerun()
+
 
 def results_module():
-    st.title("RESULTS Module")
+    global HTTP_SERVER_THREAD
+
+    st.title("SHOW RESULTS Module")
 
     # List projects belonging to the user
     dock_folder = '/home/docking_machine/dock'
@@ -556,26 +652,86 @@ def results_module():
     selected_project = st.selectbox("Your Projects", project_names, key='selected_project')
 
     if selected_project:
-        if st.button("SHOW RESULTS"):
-            # Find the HTML file in the project folder
-            project_folder = os.path.join(dock_folder, user_prefix + selected_project)
-            html_files = [f for f in os.listdir(project_folder) if f.endswith('.html')]
+        # Read receptors.csv in the selected project
+        project_folder = os.path.join(dock_folder, user_prefix + selected_project)
+        receptors_csv_path = os.path.join(project_folder, 'receptors', 'receptors.csv')
+        if os.path.exists(receptors_csv_path):
+            with open(receptors_csv_path, 'r') as f:
+                receptors = [line.strip() for line in f if line.strip()]
+        else:
+            receptors = []
+            st.error("No receptors.csv file found in the project.")
 
-            if html_files:
-                html_file_path = os.path.join(project_folder, html_files[0])
-                # Read the HTML file
-                with open(html_file_path, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
-                # Display the HTML content
-                components.html(html_content, height=800, scrolling=True)
-            else:
-                st.error("No HTML file found in the project folder.")
+        if receptors:
+            st.write("Select a receptor:")
+            selected_receptor = st.selectbox("Receptors", receptors, key='selected_receptor')
+
+            if selected_receptor:
+                receptor_folder = os.path.join(project_folder, selected_receptor)
+                if os.path.exists(receptor_folder):
+                    # Check for HTML file
+                    html_files = [f for f in os.listdir(receptor_folder) if f.endswith('.html')]
+                    if html_files:
+                        html_file_name = html_files[0]
+                        html_file_path = os.path.join(receptor_folder, html_file_name)
+
+                        if st.button("SHOW INTERACTIVE RESULTS"):
+                            # Copy receptor folder to static/<selected_receptor>
+                            static_receptor_folder = os.path.join('static', selected_receptor)
+                            # Remove existing files in the static folder
+                            if os.path.exists(static_receptor_folder):
+                                shutil.rmtree(static_receptor_folder)
+                            # Copy files
+                            try:
+                                shutil.copytree(receptor_folder, static_receptor_folder)
+                            except Exception as e:
+                                st.error(f"Error copying files: {e}")
+                                return
+
+                            # Start HTTP server if not already running
+                            if HTTP_SERVER_THREAD is None or not HTTP_SERVER_THREAD.is_alive():
+                                HTTP_SERVER_THREAD = threading.Thread(target=start_http_server, args=('static',), daemon=True)
+                                HTTP_SERVER_THREAD.start()
+
+                            # Generate URL to the HTML file
+                            html_url = f"http://YOUR_SERVER_IP:{HTTP_SERVER_PORT}/{selected_receptor}/{html_file_name}"
+                            # Replace YOUR_SERVER_IP with your actual IP address
+                            html_url = html_url.replace('YOUR_SERVER_IP', '172.22.31.82')
+
+                            # Provide the link to the user
+                            st.markdown(f'<a href="{html_url}" target="_blank">Open Interactive Results in New Tab</a>', unsafe_allow_html=True)
+                    else:
+                        st.error("No HTML file found in the receptor's folder.")
+
+                    st.markdown("<hr>", unsafe_allow_html=True)
+
+                    # Check for CSV file
+                    csv_files = [f for f in os.listdir(receptor_folder) if f.endswith('.csv')]
+                    if csv_files:
+                        csv_file_path = os.path.join(receptor_folder, csv_files[0])
+                        with open(csv_file_path, 'rb') as f:
+                            csv_data = f.read()
+                        st.download_button(
+                            label="DOWNLOAD RESULTS IN CSV",
+                            data=csv_data,
+                            file_name=csv_files[0],
+                            mime='text/csv'
+                        )
+                    else:
+                        st.error("No CSV file found in the receptor's folder.")
+                else:
+                    st.error(f"Receptor folder '{selected_receptor}' does not exist.")
+        else:
+            st.error("No receptors found in receptors.csv.")
 
     # Add 'Return to MENU' button at the bottom
     if st.button("Return to MENU", key='return_to_menu_results'):
+        # Clean up static directory
+        if os.path.exists('static'):
+            shutil.rmtree('static')
+        os.makedirs('static')
         reset_state()
         st.rerun()
-
 
 def reset_state():
     st.session_state.module = ''
@@ -583,12 +739,13 @@ def reset_state():
     keys_to_reset = [
         'project_name', 'project_valid', 'project_exists', 'prefixed_project_name',
         'pdb_codes_saved', 'pdb_input', 'pdb_file', 'ligand_file_name',
-        'ligand_uploaded', 'parameters_set', 'parameters', 'selected_projects', 'confirm_delete', 'show_register'
+        'ligand_uploaded', 'parameters_set', 'parameters', 'selected_projects_download',
+        'selected_projects_delete', 'confirm_delete', 'show_register', 'registration_successful',
+        'selected_project', 'selected_receptor'
     ]
     for key in keys_to_reset:
         if key in st.session_state:
             del st.session_state[key]
-
 
 if __name__ == "__main__":
     main()

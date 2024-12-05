@@ -47,6 +47,7 @@ import logging
 import re
 import tempfile
 import csv 
+from pathlib import Path
 
 from Bio import PDB
 from Bio.PDB import PDBList
