@@ -808,5 +808,7 @@ Each receptor has its dedicated directory containing:
 - [RDKit](https://www.rdkit.org/)
 - [Open Babel](https://openbabel.org/)
 - [PyMOL](https://pymol.org/)
-
+- [Streamlit](https://streamlit.io/)
+- [NGINX](https://nginx.org/en/)
+- [SLURM](https://slurm.schedmd.com/overview.html)
 ---
