@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Streamlit Docking GUI Service Setup Instructions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            max-width: 800px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-left: 3px solid #2c3e50;
+            overflow-x: auto;
+        }
+        code {
+            font-family: Consolas, monospace;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Streamlit Docking GUI Service Setup Instructions</h1>
+
+    <div class="section">
+        <p>To automatically run the script after a system restart on the <code>docking_machine</code> user account, you can use the systemd mechanism. Below are the steps to configure it:</p>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>1. Create a systemd Service File</h2>
+        <p>Create a <code>streamlit_docking.service</code> service file in the <code>/etc/systemd/system</code> directory:</p>
+        <pre><code>sudo nano /etc/systemd/system/streamlit_docking.service</code></pre>
+        <p>Add the following configuration:</p>
+        <pre><code>[Unit]
+Description=Streamlit Docking GUI Service
+After=network.target
+
+[Service]
+User=docking_machine
+Group=docking_machine
+WorkingDirectory=/home/docking_machine/dock
+Environment="PATH=/home/docking_machine/miniconda/envs/auto_dock/bin"
+ExecStart=/home/docking_machine/miniconda/envs/auto_dock/bin/streamlit run dock_GUI.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>2. Change Ownership and Set Appropriate Permissions</h2>
+        <p>Ensure that the file has the correct permissions and is owned by root:</p>
+        <pre><code>sudo chown root:root /etc/systemd/system/streamlit_docking.service
+sudo chmod 644 /etc/systemd/system/streamlit_docking.service</code></pre>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>3. Enable the Service</h2>
+        <p>Start and enable the service in systemd:</p>
+        <pre><code>sudo systemctl daemon-reload
+sudo systemctl enable streamlit_docking.service
+sudo systemctl start streamlit_docking.service</code></pre>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>4. Check Service Status</h2>
+        <p>To ensure that the service is running correctly, use:</p>
+        <pre><code>sudo systemctl status streamlit_docking.service</code></pre>
+        <p>If everything is working properly, you should see a message similar to:</p>
+        <pre><code>● streamlit_docking.service - Streamlit Docking GUI Service
+     Loaded: loaded (/etc/systemd/system/streamlit_docking.service; enabled; vendor preset: enabled)
+     Active: active (running) since ...</code></pre>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>5. Service Logs</h2>
+        <p>If you want to check the Streamlit application logs, you can use the following command:</p>
+        <pre><code>journalctl -u streamlit_docking.service</code></pre>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>6. (Optional) Running on Different Ports</h2>
+        <p>If you want the application to run on a custom port (e.g., 8501), you can add an option to <code>ExecStart</code>:</p>
+        <pre><code>ExecStart=/home/docking_machine/miniconda/envs/auto_dock/bin/streamlit run dock_GUI.py --server.port 8501</code></pre>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>7. Testing After Restart</h2>
+        <p>To test, restart the computer:</p>
+        <pre><code>sudo reboot</code></pre>
+        <p>After the system reboots, the application should automatically run in the background. You can verify this by visiting <a href="http://&lt;YOUR_COMPUTER_IP&gt;:8501">http://&lt;YOUR_COMPUTER_IP&gt;:8501</a> in your browser.</p>
+    </div>
+
+    <hr>
+
+    <hr>
+
+    <div class="section">
+        <h2>Service Configuration Details</h2>
+        <p>The systemd service configuration we created ensures that:</p>
+        <ol>
+            <li>
+                <strong>The service starts automatically after a system restart:</strong>
+                <ul>
+                    <li>When the system boots and loads the <code>docking_machine</code> user, the service will be activated.</li>
+                    <li>It will continue to run even after system failures or unexpected restarts because it is configured with the <code>Restart=always</code> option.</li>
+                </ul>
+            </li>
+            <li>
+                <strong>The service runs in the background:</strong>
+                <ul>
+                    <li>Streamlit will run in the background, regardless of whether the user logs into their account via terminal or graphical interface.</li>
+                </ul>
+            </li>
+            <li>
+                <strong>Supports multiple ports:</strong>
+                <ul>
+                    <li>Streamlit will start on the default port (8501), but you can add another port (e.g., 8502) in the configuration by appropriately changing the <code>ExecStart</code> line:</li>
+                    <li><code>ExecStart=/home/docking_machine/miniconda/envs/auto_dock/bin/streamlit run dock_GUI.py --server.port 8502</code></li>
+                </ul>
+            </li>
+            <li>
+                <strong>Always available if ports are open:</strong>
+                <ul>
+                    <li>As long as the ports (e.g., 8501, 8502) are open in the firewall (ufw or others) and the local network allows access to them, the service will be accessible.</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <hr>
+
+    <div class="section">
+        <h2>How to Ensure the Service is Running Correctly</h2>
+        <ol>
+            <li>
+                <strong>After a system restart:</strong>
+                <ul>
+                    <li>Restart the system:</li>
+                    <li><code>sudo reboot</code></li>
+                    <li>After logging into the <code>docking_machine</code> account, check the service status:</li>
+                    <li><code>sudo systemctl status streamlit_docking.service</code></li>
+                    <li>You should see the status <code>active (running)</code>.</li>
+                </ul>
+            </li>
+            <li>
+                <strong>Access Test:</strong>
+                <ul>
+                    <li>Open your browser and navigate to:</li>
+                    <li><a href="http://&lt;YOUR_COMPUTER_IP&gt;:8501">http://&lt;YOUR_COMPUTER_IP&gt;:8501</a></li>
+                    <li>If the application supports a second port, also check:</li>
+                    <li><a href="http://&lt;YOUR_COMPUTER_IP&gt;:8502">http://&lt;YOUR_COMPUTER_IP&gt;:8502</a></li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+</body>
+</html>

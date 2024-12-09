@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import shutil
 import re
@@ -123,15 +124,14 @@ def main():
                     add_new_user(new_username, hashed_password)
                     st.success("User registered successfully. You can now log in.")
                     st.session_state.registration_successful = True
+
             st.write(" ")  # Add more space        
-            if st.button("Return to Log in"):
+
+            # Jeden przycisk "Return to Log in"
+            if st.button("Return to Log in", key="return_to_login"):
                 reset_state()
                 st.rerun()
-            if 'registration_successful' in st.session_state and st.session_state.registration_successful:
-                if st.button("Return to Log in"):
-                    st.session_state.show_register = False
-                    del st.session_state.registration_successful
-                    st.rerun()
+
         else:
             st.title("Docking Program Login")
             st.write("Please enter your username and password.")
@@ -181,8 +181,9 @@ def main():
             st.title(f"Welcome, {st.session_state.username}!")
             st.write("Please select a module to continue:")
 
-            modules = ['DOCKING', 'QUEUE', 'SHOW RESULTS', 'DOWNLOAD RESULTS', 'DELETE RESULTS', 'LOG OUT']
-            keys = ['docking', 'queue', 'show_results', 'download', 'delete', 'logout']
+            modules = ['DOCKING', 'QUEUE', 'SHOW RESULTS', 'DOWNLOAD RESULTS', 'DELETE RESULTS', 'PyMOL Installation GUIDE', 'LOG OUT']
+            keys = ['docking', 'queue', 'show_results', 'download', 'delete', 'install_guide', 'logout']
+
 
             st.write(" ")  # Add some space
             for module_name, key in zip(modules, keys):
@@ -214,6 +215,8 @@ def main():
             delete_results_module()
         elif st.session_state.module == 'SHOW RESULTS':
             results_module()
+        elif st.session_state.module == 'PyMOL Installation GUIDE':
+            install_guide_module()
 
 def docking_module():
     st.title("DOCKING Module")
@@ -701,6 +704,134 @@ def results_module():
         reset_state()
         st.rerun()
 
+def install_guide_module():
+    st.title("Installation Guide for Open-PyMOL on Windows")
+
+    # Twój kod HTML jako string (bez tagów <html>, <head>, <body>)
+    html_content = """
+    <div class="frame">
+        
+        <h2>1. Download and Install Miniconda</h2>
+        <ol>
+            <li>
+                Open your web browser and navigate to the <a href="https://docs.conda.io/en/latest/miniconda.html" target="_blank">Miniconda download page</a>.
+            </li>
+            <li>
+                Download the appropriate Miniconda installer for Windows (64-bit recommended).
+            </li>
+            <li>
+                Once downloaded, run the installer and follow the on-screen instructions. It's recommended to install for "Just Me" and check the option to add Miniconda to your PATH environment variable during installation.
+            </li>
+            <li>
+                After installation, open the Command Prompt to verify the installation by typing:
+                <pre><code>conda --version</code></pre>
+            </li>
+        </ol>
+
+        <h2>2. Initialize Conda, Create and Activate the Open_PyMOL Environment</h2>
+        <ol>
+            <li>
+                Open the Command Prompt.
+            </li>
+            <li>
+                Initialize Conda by running:
+                <pre><code>conda init</code></pre>
+            </li>
+            <li>
+                Restart the Command Prompt to apply the changes.
+            </li>
+            <li>
+                Create a new Conda environment named <strong>open_pymol</strong> by executing:
+                <pre><code>conda create -n open_pymol python=3.10</code></pre>
+            </li>
+            <li>
+                Activate the newly created environment:
+                <pre><code>conda activate open_pymol</code></pre>
+            </li>
+        </ol>
+
+        <h2>3. Download and Install Open-PyMOL via Conda</h2>
+        <ol>
+            <li>
+                With the <strong>open_pymol</strong> environment activated, install Open-PyMOL by running:
+                <pre><code>conda install -c conda-forge openpymol</code></pre>
+            </li>
+            <li>
+                Wait for the installation to complete. Conda will handle all necessary dependencies.
+            </li>
+        </ol>
+
+        <h2>Running Open-PyMOL</h2>
+        <ol>
+            <li>
+                Open the Command Prompt.
+            </li>
+            <li>
+                Activate the <strong>open_pymol</strong> environment:
+                <pre><code>conda activate open_pymol</code></pre>
+            </li>
+            <li>
+                Launch Open-PyMOL by typing:
+                <pre><code>pymol</code></pre>
+            </li>
+            <li>
+                Open-PyMOL should now start, and you can begin using it for your molecular visualization needs.
+            </li>
+        </ol>
+    </div>
+    """
+
+    # Definiowanie stylu ramki
+    frame_style = """
+    <style>
+        .frame {
+            max-width: 1600px; /* Zwiększona szerokość o 200px */
+            width: 100%; /* Ustawienie szerokości na 100% kontenera */
+            background-color: white;
+            color: black; /* Ustawienie koloru tekstu na czarny */
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            overflow-x: auto;
+            margin: 0 auto; /* Wycentrowanie ramki */
+        }
+        .frame h1, .frame h2 {
+            color: black;
+        }
+        .frame a {
+            color: #1E90FF;
+            text-decoration: none;
+        }
+        .frame a:hover {
+            text-decoration: underline;
+        }
+        .frame ol {
+            margin-left: 20px;
+        }
+        .frame pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .frame code {
+            font-family: Consolas, "Courier New", monospace;
+            color: #c7254e;
+            background-color: #f9f2f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+    </style>
+    """
+
+    # Wyświetlanie stylu i HTML w komponentach.html
+    components.html(frame_style + html_content, height=1150, scrolling=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+    if st.button("RETURN TO MENU", key='return_to_menu_install_guide'):
+        reset_state()
+        st.rerun()
+
 def reset_state():
     st.session_state.module = ''
     st.session_state.progress = 0
@@ -709,7 +840,8 @@ def reset_state():
         'pdb_codes_saved', 'pdb_input', 'pdb_file', 'ligand_file_name',
         'ligand_uploaded', 'parameters_set', 'parameters', 'selected_projects_download',
         'selected_projects_delete', 'confirm_delete', 'show_register', 'registration_successful',
-        'selected_project', 'selected_receptor'
+        'selected_project', 'selected_receptor',
+        'selected_projects_install_guide'
     ]
     for key in keys_to_reset:
         if key in st.session_state:

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Installation Guide for Open-PyMOL on Windows</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #2E8B57;
+        }
+        ol {
+            margin-left: 20px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: Consolas, "Courier New", monospace;
+            color: #c7254e;
+            background-color: #f9f2f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        a {
+            color: #1E90FF;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Installation Guide for Open-PyMOL on Windows</h1>
+
+    <h2>1. Download and Install Miniconda</h2>
+    <ol>
+        <li>
+            Open your web browser and navigate to the <a href="https://docs.conda.io/en/latest/miniconda.html" target="_blank">Miniconda download page</a>.
+        </li>
+        <li>
+            Download the appropriate Miniconda installer for Windows (64-bit recommended).
+        </li>
+        <li>
+            Once downloaded, run the installer and follow the on-screen instructions. It's recommended to install for "Just Me" and check the option to add Miniconda to your PATH environment variable during installation.
+        </li>
+        <li>
+            After installation, open the Command Prompt to verify the installation by typing:
+            <pre><code>conda --version</code></pre>
+        </li>
+    </ol>
+
+    <h2>2. Initialize Conda, Create and Activate the Open_PyMOL Environment</h2>
+    <ol>
+        <li>
+            Open the Command Prompt.
+        </li>
+        <li>
+            Initialize Conda by running:
+            <pre><code>conda init</code></pre>
+        </li>
+        <li>
+            Restart the Command Prompt to apply the changes.
+        </li>
+        <li>
+            Create a new Conda environment named <strong>open_pymol</strong> by executing:
+            <pre><code>conda create -n open_pymol python=3.10</code></pre>
+        </li>
+        <li>
+            Activate the newly created environment:
+            <pre><code>conda activate open_pymol</code></pre>
+        </li>
+    </ol>
+
+    <h2>3. Download and Install Open-PyMOL via Conda</h2>
+    <ol>
+        <li>
+            With the <strong>open_pymol</strong> environment activated, install Open-PyMOL by running:
+            <pre><code>conda install -c conda-forge openpymol</code></pre>
+        </li>
+        <li>
+            Wait for the installation to complete. Conda will handle all necessary dependencies.
+        </li>
+    </ol>
+
+    <h2>Running Open-PyMOL</h2>
+    <ol>
+        <li>
+            Open the Command Prompt.
+        </li>
+        <li>
+            Activate the <strong>open_pymol</strong> environment:
+            <pre><code>conda activate open_pymol</code></pre>
+        </li>
+        <li>
+            Launch Open-PyMOL by typing:
+            <pre><code>pymol</code></pre>
+        </li>
+        <li>
+            Open-PyMOL should now start, and you can begin using it for your molecular visualization needs.
+        </li>
+    </ol>
+</body>
+</html>
