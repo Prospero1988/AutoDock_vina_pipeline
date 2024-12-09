@@ -1,5 +1,18 @@
-
 # AutoDock Vina Pipeline with P2RANK for HTS Docking with WEB Interface
+
+## Table of Contents
+
+- [Description](#description)
+- [Output Example](#output-example)
+- [Results Screenshots](#results-screenshots)
+- [Technologies Used and Requirements](#technologies-used)
+- [Installation](#installation)
+  - [1. Create a User Account for Docking](#1-create-a-user-account-for-docking)
+  - [2. Clone the Repository](#2-clone-the-repository)
+  - [3. Install Dependencies and Configure](#3-install-dependencies-and-configure)
+  - [4. Install and Configure SLURM for Task Management](#4-install-and-configure-slurm-for-task-management)
+  - [5. Configure the Server as a System Service](#5-configure-the-server-as-a-system-service)
+  - [6. NGINX Reverse Proxy Setup for Streamlit](#6-nginx-reverse-proxy-setup-for-streamlit)
 
 ## Description
 
@@ -403,8 +416,30 @@ If everything is correct, restart NGINX:
 ```bash
 sudo systemctl restart nginx
 ```
+##### 6. Open Firewall Ports for NGINX
 
-##### 6. Test Access
+To allow HTTP and HTTPS traffic through the firewall, use the following command:
+
+```bash
+sudo ufw allow 'Nginx Full'
+```
+
+Verify the firewall status:
+
+```bash
+sudo ufw status
+```
+
+Expected output:
+
+```bash
+To                         Action      From
+--                         ------      ----
+Nginx Full                 ALLOW       Anywhere
+Nginx Full (v6)            ALLOW       Anywhere (v6)
+```
+
+##### 7. Test Access
 
 Open your browser and navigate to:
 
