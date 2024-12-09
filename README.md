@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Description](#description)
+- [Web Interface](#web-interface)
 - [Output Example](#output-example)
 - [Results Screenshots](#results-screenshots)
 - [Technologies Used and Requirements](#technologies-used)
@@ -19,6 +20,15 @@
 This repository provides an automated docking solution for ligands and receptor proteins using **AutoDock Vina** and **P2Rank**. It supports high-throughput docking workflows and integrates seamlessly with **SLURM**, a workload manager for distributed computing and queue management. Additionally, the entire functionality is built into a web interface using the **Streamlit** framework, allowing convenient and intuitive operation from a web browser.
 
 The program is built on open-source libraries and solutions. It implements a user account system, facilitating easy project management, handling of generated data, and seamless navigation. The installation process is comprehensive, enabling even beginner users to utilize this tool effectively. The system is developed and tested on **Ubuntu 22.04** as a compute hosting server. Access via a web browser is unrestricted by the system, allowing the program to run locally on an Ubuntu machine or be configured as a server on a local network, accessible from any computer within the same LAN.
+
+## Web Interface
+
+The interface is built on the Sreamlit framework. After installation and configuration, the whole thing functions perfectly from a web browser.
+
+</br>
+<div align="center">
+    <img src="img/interface.png" alt="Presentation of web interface" title="Presentation of web interface">
+</div>
 
 ## Output Example
 
