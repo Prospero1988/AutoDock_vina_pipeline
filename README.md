@@ -19,12 +19,37 @@
   - [Accessing on LAN](#accessing-on-lan)
   - [Functionalities Overview](#functionalities-overview)
   - [Instructions for Use](#instructions-for-use)
+- [Docking Work Flow](#docking-work-flow)
+  - [Input Parsing](#input-parsing)
+  - [Receptor Preparation](#receptor-preparation)
+  - [Binding Site Prediction](#binding-site-prediction)
+  - [Ligand Preparation](#ligand-preparation)
+  - [Docking Execution](#docking-execution)
+- [Docking Parameters explained](#docking-parameters-explained)
+  - [Tolerance parameters](#tolerance-parameters)
+  - [Auto Dock Vina parameters](#auto-dock-vina-parameters)
+- [Visualization and Results Generation](#visualization-and-results-generation)
+  - [Visualizations](#visualizations)
+  - [HTML and CSV Reports](#html-and-csv-reports)
+- [Output File Organization](#output-file-organization)
+- [Acknowledgments](#acknowledgments)
 
 ## Description
+
+### Program Description
 
 This repository provides an automated docking solution for ligands and receptor proteins using **AutoDock Vina** and **P2Rank**. It supports high-throughput docking workflows and integrates seamlessly with **SLURM**, a workload manager for distributed computing and queue management. Additionally, the entire functionality is built into a web interface using the **Streamlit** framework, allowing convenient and intuitive operation from a web browser.
 
 The program is built on open-source libraries and solutions. It implements a user account system, facilitating easy project management, handling of generated data, and seamless navigation. The installation process is comprehensive, enabling even beginner users to utilize this tool effectively. The system is developed and tested on **Ubuntu 22.04** as a compute hosting server. Access via a web browser is unrestricted by the system, allowing the program to run locally on an Ubuntu machine or be configured as a server on a local network, accessible from any computer within the same LAN.
+
+### Notes
+
+I am still working on this project and adding new features. The uploaded repository is fully functional. If you have any suggestions then feel free to contact me, or open a discussion or add a post.
+
+### Problems and support
+
+If you encounter any problems with the installation or operation of the docking program, do not hesitate to contact me. I will do my best to assist you.
+
 
 ## Web Interface
 
@@ -83,7 +108,7 @@ In this repository, there is a downloadable file [output_example.zip](https://gi
 - `streamlit`
 - `bcrypt`
 
-- **Java Runtime Environment (JRE)**
+**Java Runtime Environment (JRE)**
 
 ## Installation
 
@@ -508,6 +533,8 @@ If everything is fine, you should see a message similar to:
 
 By configuring NGINX as a service and enabling it, it will run automatically at every system boot without needing manual intervention. If your Streamlit server is properly running through NGINX, accessing the application via `http://<YOUR_LAN_IP>` will consistently work after each restart. 
 
+
+
 ## Running the Application
 
 ### Accessing Locally
@@ -621,3 +648,165 @@ streamlit run dock_GUI.py
 ```
 
 However, it's recommended to use the system service configuration for seamless operation.
+
+## Docking Work Flow
+
+### Input Parsing
+
+The script accepts the following arguments:
+
+- `--pdb_ids`: A CSV file located in the `./receptors` directory, containing the PDB IDs of receptor proteins. Each ID corresponds to a unique protein structure available in the Protein Data Bank (PDB).
+- `--ligands`: A ligand file located in the `./ligands` directory. Supported formats include SDF and MOL2 files, allowing flexibility in ligand input.
+
+**Tolerance Parameters:**
+
+- `--tol_x`: Tolerance in Ångströms to expand the docking pocket dimension along the X-axis beyond those defined by P2Rank (default: 0.0).
+- `--tol_y`: Tolerance in Ångströms to expand the docking pocket dimension along the Y-axis beyond those defined by P2Rank (default: 0.0).
+- `--tol_z`: Tolerance in Ångströms to expand the docking pocket dimension along the Z-axis beyond those defined by P2Rank (default: 0.0).
+
+**Offset Parameters:**
+
+- `--offset_x`: Offset in Ångströms to shift the center of the docking grid box along the X-axis (optional, default: 0.0).
+- `--offset_y`: Offset in Ångströms to shift the center of the docking grid box along the Y-axis (optional, default: 0.0).
+- `--offset_z`: Offset in Ångströms to shift the center of the docking grid box along the Z-axis (optional, default: 0.0).
+- `--pckt`: Pocket number to use from P2Rank predictions (default: 1).
+- `--exhaust`: Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).
+- `--energy_range`: Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 4).
+
+**Automatic Ligand Naming:**
+
+In cases where ligands in the input files lack explicit names, the script assigns them generic names in the format `ligand_001`, `ligand_002`, etc., ensuring consistent and organized output.
+
+### Receptor Preparation
+
+**Download Receptor Structures:**
+
+For each PDB ID listed in the CSV file, the script downloads the corresponding protein structure from the Protein Data Bank (PDB). The downloaded file is saved as `<PDB_ID>_dirty.pdb` in a newly created folder named after the receptor (e.g., `./8W88/`).
+
+**Fixing the Receptor:**
+
+Using PDBFixer, the script:
+
+- Retains only the chain with the maximum number of residues.
+- Removes heteroatoms and water molecules.
+- Adds missing residues, atoms, and hydrogens based on a physiological pH of 7.4.
+
+The fixed structure is saved as `<PDB_ID>_fixed.pdb`.
+
+**Receptor Conversion:**
+
+The fixed PDB structure is converted to the `.pdbqt` format required by AutoDock Vina. The converted file is saved as `<PDB_ID>.pdbqt`.
+
+### Binding Site Prediction
+
+- The script utilizes **P2Rank** to predict potential binding sites (pockets) on the receptor.
+  - The predictions are saved in a folder named `01_p2rank_output` within the receptor's directory.
+  - A CSV file (`<PDB_ID>_predictions.csv`) lists each pocket's coordinates, size, and scores.
+- The selected pocket (based on the `--pckt` argument) is used to define the docking box dimensions. This includes the center coordinates (`center_x`, `center_y`, `center_z`) and sizes (`size_x`, `size_y`, `size_z`) with optional tolerances (`--tol_x`, `--tol_y`, `--tol_z`) for each axis. Additionally, optional offsets (`--offset_x`, `--offset_y`, `--offset_z`) allow for independent shifting of the docking grid center along each axis.
+
+### Ligand Preparation
+
+- For each ligand in the provided SDF or MOL2 file:
+  - **Format Handling:**
+    - The script automatically detects the file format (SDF or MOL2) and processes accordingly.
+  - **Conversion and Processing:**
+    - The ligand is converted to `.pdb` format using RDKit.
+    - Hydrogen atoms are added, and a 3D conformer is generated for the ligand.
+    - The `.pdb` file is converted to `.pdbqt` format required for docking using Open Babel.
+- **Output Organization:**
+  - The prepared ligand files are stored in the `02_ligands_results` subdirectory within the receptor's folder (e.g., `./8W88/02_ligands_results/`).
+
+### Docking Execution
+
+- The script runs **AutoDock Vina** for each receptor-ligand pair:
+  - The docking box is defined using P2Rank predictions, with optional tolerances and offsets.
+  - Parameters such as `--exhaust` (exhaustiveness) and `--energy_range` control the thoroughness and energy tolerance for pose scoring.
+  - Docking results are saved in `.pdbqt` format, and key details (e.g., binding affinities) are extracted from the output.
+- **Post-Docking File Management:**
+  - All `.pdbqt` files for ligands after docking are collectively copied into the `03_ligands_PDBQT` folder, facilitating easy access without navigating through individual folders.
+
+## Docking Parameters Explained
+
+You can run the docking without changing/defining these parameters. Default values will be used. To view the docking box, it's best to open any resulting `.pse` file in PyMOL. This file contains a drawn grid box along with the coordinate axes.
+
+### Tolerance Parameters
+
+- `--tol_x`, `--tol_y`, `--tol_z`: Docking box tolerances in Ångströms to expand the docking pocket dimensions along the X, Y, and Z axes respectively (default: 0.0 for each). Define how much to expand the docking pocket along each respective axis beyond the predictions made by P2Rank. Negative values indicate contraction.
+- `--offset_x`, `--offset_y`, `--offset_z`: Offsets in Ångströms to shift the center of the docking grid box along the X, Y, and Z axes respectively (default: 0.0 for each).
+
+### Auto Dock Vina Parameters
+
+- `--pckt`: Pocket number from P2Rank predictions (default: 1).
+- `--exhaust`: Docking thoroughness (default: 16).
+- `--energy_range`: Energy range for docking poses (default: 4 kcal/mol).
+
+## Visualization and Results Generation
+
+### Visualizations
+
+PyMOL is used to generate visualizations of the best-docked ligand poses superimposed on the receptor structure. The visualizations include the docking grid (box) and XYZ axes for better spatial orientation. Both high-resolution images (`.png`) and PyMOL session files (`.pse`) are saved for each docking result. The PyMOL session files include the docking grid and XYZ axes, allowing users to explore the docking results interactively within PyMOL.
+
+### HTML and CSV Reports
+
+#### HTML Report
+
+The script creates an interactive HTML report for each receptor, summarizing:
+
+- Key docking metrics (binding energies, pocket scores).
+- Links to output files (e.g., `.pdbqt` and `.txt`).
+- 2D and 3D visualizations of ligand-receptor complexes.
+- **New**: An additional column with links to the PyMOL session files (`.pse`), enabling users to open and manipulate the docking results directly in PyMOL.
+
+#### CSV Summary
+
+In addition to the HTML report, a CSV summary file is generated containing:
+
+- **Name**: Ligand name.
+- **Affinity**: Binding affinity values.
+- **SMILES**: Simplified molecular-input line-entry system representations of ligands.
+
+This CSV file provides a convenient overview of docking results for further analysis.
+
+## Output File Organization
+
+In each project directory, there are subfolders corresponding to each receptor. Within these receptor-specific subfolders, you can find the results from the docking simulations. The organization of these subfolders is as follows:
+
+Each receptor has its dedicated directory containing:
+
+**Processed Structures:**
+
+- `<PDB_ID>_dirty.pdb`: Raw receptor structure.
+- `<PDB_ID>_fixed.pdb`: Cleaned receptor structure.
+- `<PDB_ID>.pdbqt`: Receptor ready for docking.
+
+**Docking Results:**
+
+- `02_ligands_results/`:
+  - `<ligand_name>.pdbqt`: Prepared ligand.
+  - `<ligand_name>.svg`: 2D ligand structure images.
+  - `<PDB_ID>_<ligand_name>_docking.pse`: PyMOL session files including the docking grid and XYZ axes.
+- `03_ligands_PDBQT/`:
+  - All docked ligand `.pdbqt` files copied here for easy access.
+
+**Visualizations:**
+
+- `<PDB_ID>_<ligand_name>_docking.png`: High-resolution 3D visualizations of docked complexes.
+
+**Reports:**
+
+- `<PDB_ID>_results.html`: Interactive HTML report summarizing docking results, including links to PyMOL session files.
+- `<PDB_ID>_results_in_CSV.csv`: CSV file containing ligand name, affinity, and SMILES.
+
+**P2Rank Predictions:**
+
+- `01_p2rank_output/<PDB_ID>_predictions.csv`: Binding site information.
+
+## Acknowledgments
+
+- [AutoDock Vina](http://vina.scripps.edu/)
+- [P2Rank](https://github.com/rdk/p2rank)
+- [RDKit](https://www.rdkit.org/)
+- [Open Babel](https://openbabel.org/)
+- [PyMOL](https://pymol.org/)
+
+---
