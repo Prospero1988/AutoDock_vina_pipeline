@@ -496,12 +496,12 @@ def queue_module():
 
     def display_queue():
         try:
-            cmd = ['squeue', '-r', '-o', '%i,%u,%j,%T,%M,%S', '--noheader']
+            cmd = ['squeue', '-r', '-o', '%i,%j,%T,%M,%S', '--noheader']
             result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
             output = result.stdout.strip().split('\n')
             rows = [line.strip().split(',') for line in output if line.strip()]
             if rows:
-                df = pd.DataFrame(rows, columns=['JobID', 'User', 'JobName', 'State', 'TimeUsed', 'StartTime'])
+                df = pd.DataFrame(rows, columns=['JobID', 'JobName', 'State', 'TimeUsed', 'StartTime'])
                 st.table(df)
             else:
                 st.write("No jobs in the queue.")
@@ -754,7 +754,7 @@ def install_guide_module():
         <ol>
             <li>
                 With the <strong>open_pymol</strong> environment activated, install Open-PyMOL by running:
-                <pre><code>conda install -c conda-forge openpymol</code></pre>
+                <pre><code>conda install -y -c conda-forge pymol-open-source</code></pre>
             </li>
             <li>
                 Wait for the installation to complete. Conda will handle all necessary dependencies.
