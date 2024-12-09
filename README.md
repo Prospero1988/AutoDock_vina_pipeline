@@ -1,4 +1,4 @@
-```markdown
+
 # AutoDock Vina Pipeline with P2RANK for HTS Docking with WEB Interface
 
 ## Description
@@ -456,5 +456,5 @@ If everything is fine, you should see a message similar to:
 
 #### Summary
 
-By configuring NGINX as a service and enabling it, it will run automatically at every system boot without needing manual intervention. If your Streamlit server is properly running through NGINX, accessing the application via `http://<YOUR_LAN_IP>` will consistently work after each restart. í ½íº€
+By configuring NGINX as a service and enabling it, it will run automatically at every system boot without needing manual intervention. If your Streamlit server is properly running through NGINX, accessing the application via `http://<YOUR_LAN_IP>` will consistently work after each restart. 
 ```
