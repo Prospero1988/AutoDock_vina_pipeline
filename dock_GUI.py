@@ -496,12 +496,12 @@ def queue_module():
 
     def display_queue():
         try:
-            cmd = ['squeue', '-r', '-o', '%i,%u,%j,%T,%M,%S', '--noheader']
+            cmd = ['squeue', '-r', '-o', '%i,%j,%T,%M,%S', '--noheader']
             result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
             output = result.stdout.strip().split('\n')
             rows = [line.strip().split(',') for line in output if line.strip()]
             if rows:
-                df = pd.DataFrame(rows, columns=['JobID', 'User', 'JobName', 'State', 'TimeUsed', 'StartTime'])
+                df = pd.DataFrame(rows, columns=['JobID', 'JobName', 'State', 'TimeUsed', 'StartTime'])
                 st.table(df)
             else:
                 st.write("No jobs in the queue.")

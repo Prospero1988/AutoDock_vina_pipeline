@@ -48,6 +48,7 @@ import re
 import tempfile
 import csv 
 from pathlib import Path
+import gzip
 
 from Bio import PDB
 from Bio.PDB import PDBList
@@ -433,39 +434,99 @@ def sanitize_ligand_name(name):
 
 @logger_decorator
 def download_pdb(pdb_id, download_dir):
+    """
+    Downloads the PDB file for a given PDB ID. If the PDB format is unavailable,
+    downloads the mmCIF file and converts it to PDB using Open Babel.
+
+    Args:
+        pdb_id (str): The PDB ID of the structure to download.
+        download_dir (str): The directory where the downloaded files will be saved.
+
+    Returns:
+        str: The path to the PDB file.
+        str: The name of the protein (if available).
+
+    Raises:
+        FileNotFoundError: If neither PDB nor mmCIF files can be downloaded.
+    """
     if not os.path.exists(download_dir):
         os.makedirs(download_dir)
-    pdbl = PDBList()
-    try:
-        pdb_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='pdb', pdir=download_dir)
-    except Exception as e:
-        logging.error(f"Failed to download PDB {pdb_id}: {e}")
-        raise
-    # Handle compressed files
-    if pdb_file_path.endswith('.gz'):
-        import gzip
-        with gzip.open(pdb_file_path, 'rb') as f_in:
-            uncompressed_path = pdb_file_path[:-3]  # Remove '.gz'
-            with open(uncompressed_path, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        os.remove(pdb_file_path)
-        pdb_file_path = uncompressed_path
-    # Rename to standard PDB file name
-    expected_filename = os.path.join(download_dir, f"{pdb_id}.pdb")
-    os.rename(pdb_file_path, expected_filename)
-    if not os.path.exists(expected_filename):
-        raise FileNotFoundError(f"Failed to download PDB {pdb_id}.")
-    logging.info(f"PDB file downloaded: {expected_filename}")
-    
-    # Extract protein name
-    parser = PDB.PDBParser(QUIET=True)
-    structure = parser.get_structure(pdb_id, expected_filename)
-    header = structure.header  # Header contains metadata
-    protein_name = header.get('name', 'Unknown')  # Extract protein name if available
-    logging.info(f"Protein name for {pdb_id}: {protein_name}")
-    
-    return expected_filename, protein_name
 
+    pdbl = PDBList()
+    expected_pdb_filename = os.path.join(download_dir, f"{pdb_id}.pdb")
+
+    # Attempt to download the PDB file
+    try:
+        logging.info(f"Attempting to download PDB file for {pdb_id}...")
+        pdb_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='pdb', pdir=download_dir)
+
+        # Handle compressed files (.gz)
+        if pdb_file_path.endswith('.gz'):
+            with gzip.open(pdb_file_path, 'rb') as f_in:
+                uncompressed_path = pdb_file_path[:-3]  # Remove '.gz'
+                with open(uncompressed_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            os.remove(pdb_file_path)
+            pdb_file_path = uncompressed_path
+
+        # Rename to standard PDB filename
+        shutil.move(pdb_file_path, expected_pdb_filename)
+        logging.info(f"PDB file downloaded: {expected_pdb_filename}")
+
+    except Exception as e_pdb:
+        logging.warning(f"Failed to download PDB file for {pdb_id}: {e_pdb}")
+        logging.info(f"Attempting to download mmCIF file for {pdb_id}...")
+
+        # Attempt to download the mmCIF file with correct capitalization
+        try:
+            cif_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='mmCif', pdir=download_dir)
+
+            # Handle compressed files (.cif.gz)
+            if cif_file_path.endswith('.cif.gz'):
+                with gzip.open(cif_file_path, 'rb') as f_in:
+                    uncompressed_path = cif_file_path[:-3]  # Remove '.gz'
+                    with open(uncompressed_path, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                os.remove(cif_file_path)
+                cif_file_path = uncompressed_path
+
+            logging.info(f"mmCIF file downloaded: {cif_file_path}")
+
+            # Convert mmCIF to PDB using Open Babel
+            logging.info(f"Converting mmCIF to PDB for {pdb_id}...")
+            subprocess.run([
+                OBABEL_PATH,
+                "-i", "cif",
+                cif_file_path,
+                "-o", "pdb",
+                "-O", expected_pdb_filename
+            ], check=True)
+            logging.info(f"PDB file after conversion: {expected_pdb_filename}")
+
+            # Remove the mmCIF file after conversion
+            os.remove(cif_file_path)
+            logging.info(f"Removed mmCIF file: {cif_file_path}")
+
+        except Exception as e_cif:
+            logging.error(f"Failed to download both PDB and mmCIF files for {pdb_id}: {e_cif}")
+            raise FileNotFoundError(f"Could not download PDB or mmCIF file for {pdb_id}.")
+
+    # Verify that the PDB file exists
+    if not os.path.exists(expected_pdb_filename):
+        raise FileNotFoundError(f"PDB file for {pdb_id} was not found after download attempts.")
+
+    # Extract protein name from the PDB file
+    try:
+        parser = PDB.PDBParser(QUIET=True)
+        structure = parser.get_structure(pdb_id, expected_pdb_filename)
+        header = structure.header
+        protein_name = header.get('name', 'Unknown')
+        logging.info(f"Protein name for {pdb_id}: {protein_name}")
+    except Exception as e_header:
+        logging.warning(f"Could not extract protein name for {pdb_id}: {e_header}")
+        protein_name = 'Unknown'
+
+    return expected_pdb_filename, protein_name
 
 @logger_decorator
 def fix_pdb(input_pdb, output_pdb, ph=7.4):
