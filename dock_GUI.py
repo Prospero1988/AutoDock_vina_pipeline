@@ -754,7 +754,7 @@ def install_guide_module():
         <ol>
             <li>
                 With the <strong>open_pymol</strong> environment activated, install Open-PyMOL by running:
-                <pre><code>conda install -c conda-forge openpymol</code></pre>
+                <pre><code>conda install -y -c conda-forge pymol-open-source</code></pre>
             </li>
             <li>
                 Wait for the installation to complete. Conda will handle all necessary dependencies.
