@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Description](#description)
+- [UPDATES](#updates)
 - [Web Interface](#web-interface)
 - [Output Example](#output-example)
 - [Results Screenshots](#results-screenshots)
@@ -50,6 +51,10 @@ I am still working on this project and adding new features. The uploaded reposit
 
 If you encounter any problems with the installation or operation of the docking program, do not hesitate to contact me. I will do my best to assist you.
 
+## UPDATES
+
+- Some PDB codes in the PDB database do not correspond to actual .pdb files, because only mmCIF files are available. The program, in case it cannot download a .pdb file, tries to download a .cif file. After successfully downloading it, it converts it to .pdb and passes it on for further processing and docking.
+- Automatic selection of a chain with a receptor did not work due to the lack of uniformity in chain naming. Now, when PDB codes are given, the structures are retrieved, a list of chains is loaded, and the user has to select for each receptor the appropriate chain containing the receptor, or docking site, from a drop-down list. Alternatively, an input can be prepared in the form of a csv file that contains PDB codes and chain IDs. After loading the CSV file, a list of receptors with selected chains is shown, which can be modified, or accepted and passed on for further calculations.
 
 ## Web Interface
 
