@@ -240,67 +240,83 @@ def docking_module():
         reset_state()
         st.rerun()
 
-    # Proceed through the steps based on progress
     progress = st.session_state.progress
 
-    # Initialize parameters outside the conditional blocks
-    parameters = {}
+    # Initialize required variables if they don't exist
+    if 'project_name' not in st.session_state:
+        st.session_state.project_name = ''
+    if 'project_valid' not in st.session_state:
+        st.session_state.project_valid = False
+    if 'project_exists' not in st.session_state:
+        st.session_state.project_exists = False
+    if 'confirmed_project_creation' not in st.session_state:
+        st.session_state.confirmed_project_creation = False
 
-    # Step 1: Greeting and Project Name Input
+    # Step 1: Project Setup
     if progress == 1:
         st.header("1. Project Setup")
         st.write("Please provide a project name where your docking will be saved.")
 
-        # Initialize variables
-        if 'project_name' not in st.session_state:
-            st.session_state.project_name = ''
-        if 'project_valid' not in st.session_state:
-            st.session_state.project_valid = False
-        if 'project_exists' not in st.session_state:
-            st.session_state.project_exists = False
+        project_name_input = st.text_input("Project Name", value=st.session_state.project_name)
 
-        # Project Name Input
-        project_name_input = st.text_input("Project Name", st.session_state.project_name)
-
-        if st.button("Submit Project Name"):
+        if st.button("Submit Project Name", key="submit_project_name"):
             if project_name_input:
                 project_name = validate_project_name(project_name_input)
                 if project_name:
-                    st.session_state.project_name = project_name
-                    # Add user prefix to project folder name
                     prefixed_project_name = f"{st.session_state.username}_{project_name}"
-                    st.session_state.prefixed_project_name = prefixed_project_name
                     project_path = os.path.join('/home/docking_machine/dock', prefixed_project_name)
                     template_path = '/home/docking_machine/dock/template'
 
+                    st.session_state.project_name = project_name
+                    st.session_state.prefixed_project_name = prefixed_project_name
+
                     if not os.path.exists(project_path):
-                        # Create the folder
+                        # Project does not exist, create it
                         try:
                             shutil.copytree(template_path, project_path)
                             st.success(f"Project folder '{prefixed_project_name}' has been created.")
-                            st.session_state.project_valid = True
-                            st.session_state.progress = 2
-                            st.rerun()
+                            
+                            # Ustawiamy flagę wskazującą, że projekt został utworzony
+                            st.session_state.project_just_created = True
+                            # Nie zmieniamy od razu progress ani nie robimy rerun
+                            
                         except Exception as e:
                             st.error(f"Error copying template: {e}")
                     else:
-                        # Project already exists
-                        st.session_state.project_exists = True
+                        # Project exists
                         st.warning(f"Project '{project_name}' already exists.")
-                        use_existing = st.radio(
-                            "Do you want to continue with the existing project or enter a new project name?",
-                            ('Continue with existing project', 'Enter a new project name')
-                        )
-                        if use_existing == 'Continue with existing project':
-                            st.session_state.project_valid = True
-                            st.session_state.progress = 2
-                            st.rerun()
-                        else:
-                            st.session_state.project_valid = False
-                            st.session_state.project_name = ''
+                        st.session_state.project_exists = True
+                        st.rerun()
                 else:
                     st.error("Invalid project name. Use only alphanumeric characters, numbers, or underscores (_).")
                     st.session_state.project_valid = False
+            else:
+                st.error("Please enter a project name.")
+
+        # Jeśli projekt został właśnie utworzony i wciąż jesteśmy na progress == 1
+        if 'project_just_created' in st.session_state and st.session_state.project_just_created and progress == 1:
+            if st.button("CONFIRM", key="confirm_project_creation"):
+                st.session_state.project_valid = True
+                st.session_state.project_exists = False
+                st.session_state.project_just_created = False
+                st.session_state.progress = 2
+                st.rerun()
+
+    if progress == 1 and st.session_state.project_exists:
+        st.warning(f"⚠ Warning: Project '{st.session_state.project_name}' already exists.")
+        decision = st.radio("Project already exists. Choose what to do:", ("PROCEED", "CHANGE NAME"), key="decision_action")
+        if st.button("Confirm Action", key="confirm_action"):
+            if decision == "PROCEED":
+                st.session_state.project_valid = True
+                st.session_state.progress = 2
+                st.session_state.project_exists = False
+                st.rerun()
+            elif decision == "CHANGE NAME":
+                st.session_state.project_valid = False
+                st.session_state.project_name = ''
+                st.session_state.project_exists = False
+                st.session_state.progress = 1
+                st.rerun()
 
     # Step 2: Entering PDB Codes
     if st.session_state.project_valid and st.session_state.progress == 2:
