@@ -17,7 +17,7 @@ python dock.py --pdb_ids receptors.csv --ligands ligand_file.sdf
 
 Arguments:
 
-- --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins, located in ./receptors directory.
+- --pdb_ids: The name of the CSV file containing PDB IDs of receptor proteins and chain IDs of chain that would be used in docking, located in ./receptors directory.
 - --ligands: The name of the SDF or MOL2 file containing ligands to dock, located in ./ligands directory.
 - --tol_x: Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (optional)
 - --tol_y: Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (optional)
@@ -93,7 +93,7 @@ def logger_decorator(func):
 def main():
     # Argument parsing
     parser = argparse.ArgumentParser(description="Automated docking script for multiple ligands and receptors.")
-    parser.add_argument('--pdb_ids', required=True, help='Name of the CSV file containing PDB IDs of receptor proteins, located in ./receptors.')
+    parser.add_argument('--pdb_ids', required=True, help='Name of the CSV file containing PDB IDs and Chain IDs of receptor proteins, located in ./receptors.')
     parser.add_argument('--ligands', required=True, help='Name of the SDF or MOL2 file containing ligands, located in ./ligands.')
     parser.add_argument('--tol_x', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (default: 0).')
     parser.add_argument('--tol_y', type=int, default=0, help='Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (default: 0).')
@@ -213,16 +213,20 @@ def main():
     else:
         logging.info(f"Receptors file found: {receptors_file_path}")
 
-    with open(receptors_file_path, 'r') as receptors_file:
-        pdb_ids = [line.strip() for line in receptors_file if line.strip()]
+    df_receptors = pd.read_csv(receptors_file_path, header=None)
+    pdb_ids_and_chains = df_receptors.values.tolist()
 
-    if not pdb_ids:
-        raise ValueError("No PDB IDs found in the receptors file.")
+    if df_receptors.empty:
+        raise ValueError("No PDB IDs and Chain IDs found in the receptors file.")
 
     # Loop to work on multiple receptors
-    for PDB_ID in pdb_ids:
+    for row in pdb_ids_and_chains:
+        if len(row) < 2:
+            logging.warning(f"Skipping a row with an insufficient number of columns: {row}")
+            continue
+        PDB_ID, chain_ID = row[:2]
         pocket_number = args.pckt
-        receptor_name = PDB_ID
+        receptor_name = f"{PDB_ID}_{chain_ID}"
         tol_x = args.tol_x
         tol_y = args.tol_y
         tol_z = args.tol_z
@@ -252,8 +256,8 @@ def main():
         file_handler.setFormatter(formatter)
         logging.getLogger().addHandler(file_handler)
 
-        logging.info(f"Processing receptor {PDB_ID}")
-        logging.info(f"Tolerances (Å): X: {tol_x}, Y: {tol_y}, Z: {tol_z}")
+        logging.info(f"Processing receptor {PDB_ID} with Chain ID {chain_ID}")
+        print(f"Processing receptor {PDB_ID} with Chain ID {chain_ID}")
         print(f"Docking tolerances set to X: {tol_x} Å, Y: {tol_y} Å, Z: {tol_z} Å.")
 
         # Output results file
@@ -270,7 +274,7 @@ def main():
             shutil.move(downloaded_pdb_path, dirty_pdb)
 
             fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-            fix_pdb(dirty_pdb, fixed_pdb, ph=7.4)
+            fix_pdb(dirty_pdb, fixed_pdb, chain_ID, ph=7.4)
 
             receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
             prepare_receptor(fixed_pdb, receptor_pdbqt)
@@ -434,42 +438,24 @@ def sanitize_ligand_name(name):
 
 @logger_decorator
 def download_pdb(pdb_id, download_dir):
-    """
-    Downloads the PDB file for a given PDB ID. If the PDB format is unavailable,
-    downloads the mmCIF file and converts it to PDB using Open Babel.
-
-    Args:
-        pdb_id (str): The PDB ID of the structure to download.
-        download_dir (str): The directory where the downloaded files will be saved.
-
-    Returns:
-        str: The path to the PDB file.
-        str: The name of the protein (if available).
-
-    Raises:
-        FileNotFoundError: If neither PDB nor mmCIF files can be downloaded.
-    """
     if not os.path.exists(download_dir):
         os.makedirs(download_dir)
 
     pdbl = PDBList()
     expected_pdb_filename = os.path.join(download_dir, f"{pdb_id}.pdb")
 
-    # Attempt to download the PDB file
     try:
         logging.info(f"Attempting to download PDB file for {pdb_id}...")
         pdb_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='pdb', pdir=download_dir)
 
-        # Handle compressed files (.gz)
         if pdb_file_path.endswith('.gz'):
             with gzip.open(pdb_file_path, 'rb') as f_in:
-                uncompressed_path = pdb_file_path[:-3]  # Remove '.gz'
+                uncompressed_path = pdb_file_path[:-3]
                 with open(uncompressed_path, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             os.remove(pdb_file_path)
             pdb_file_path = uncompressed_path
 
-        # Rename to standard PDB filename
         shutil.move(pdb_file_path, expected_pdb_filename)
         logging.info(f"PDB file downloaded: {expected_pdb_filename}")
 
@@ -477,14 +463,12 @@ def download_pdb(pdb_id, download_dir):
         logging.warning(f"Failed to download PDB file for {pdb_id}: {e_pdb}")
         logging.info(f"Attempting to download mmCIF file for {pdb_id}...")
 
-        # Attempt to download the mmCIF file with correct capitalization
         try:
             cif_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='mmCif', pdir=download_dir)
 
-            # Handle compressed files (.cif.gz)
             if cif_file_path.endswith('.cif.gz'):
                 with gzip.open(cif_file_path, 'rb') as f_in:
-                    uncompressed_path = cif_file_path[:-3]  # Remove '.gz'
+                    uncompressed_path = cif_file_path[:-3]
                     with open(uncompressed_path, 'wb') as f_out:
                         shutil.copyfileobj(f_in, f_out)
                 os.remove(cif_file_path)
@@ -492,7 +476,6 @@ def download_pdb(pdb_id, download_dir):
 
             logging.info(f"mmCIF file downloaded: {cif_file_path}")
 
-            # Convert mmCIF to PDB using Open Babel
             logging.info(f"Converting mmCIF to PDB for {pdb_id}...")
             subprocess.run([
                 OBABEL_PATH,
@@ -503,7 +486,6 @@ def download_pdb(pdb_id, download_dir):
             ], check=True)
             logging.info(f"PDB file after conversion: {expected_pdb_filename}")
 
-            # Remove the mmCIF file after conversion
             os.remove(cif_file_path)
             logging.info(f"Removed mmCIF file: {cif_file_path}")
 
@@ -511,7 +493,6 @@ def download_pdb(pdb_id, download_dir):
             logging.error(f"Failed to download both PDB and mmCIF files for {pdb_id}: {e_cif}")
             raise FileNotFoundError(f"Could not download PDB or mmCIF file for {pdb_id}.")
 
-    # Verify that the PDB file exists
     if not os.path.exists(expected_pdb_filename):
         raise FileNotFoundError(f"PDB file for {pdb_id} was not found after download attempts.")
 
@@ -526,10 +507,30 @@ def download_pdb(pdb_id, download_dir):
         logging.warning(f"Could not extract protein name for {pdb_id}: {e_header}")
         protein_name = 'Unknown'
 
+    # ADDED CODE: If the file was converted from mmCIF and protein_name is known,
+    # add a TITLE line to the PDB file to record the protein name
+    if protein_name != 'Unknown':
+        with open(expected_pdb_filename, 'r') as f:
+            pdb_lines = f.readlines()
+
+        # Try to insert TITLE after HEADER if present, otherwise at the start
+        insert_index = 0
+        for i, line in enumerate(pdb_lines):
+            if line.startswith("HEADER"):
+                insert_index = i+1
+                break
+
+        title_line = f"TITLE     {protein_name}\n"
+        pdb_lines.insert(insert_index, title_line)
+
+        with open(expected_pdb_filename, 'w') as f:
+            f.writelines(pdb_lines)
+        logging.info("Inserted TITLE line with protein name into the PDB file.")
+
     return expected_pdb_filename, protein_name
 
 @logger_decorator
-def fix_pdb(input_pdb, output_pdb, ph=7.4):
+def fix_pdb(input_pdb, output_pdb, chain_ID, ph=7.4):
     try:
         fixer = PDBFixer(filename=input_pdb)
 
@@ -546,25 +547,20 @@ def fix_pdb(input_pdb, output_pdb, ph=7.4):
         # Adding missing protons
         fixer.addMissingHydrogens(ph)
 
-        # Obtain a list of strings after removing heterogeneities
-        chain_residue_counts = {}
+        # Downloading the list of strings
         chain_list = list(fixer.topology.chains())
-        for index, chain in enumerate(chain_list):
-            residue_count = sum(1 for residue in chain.residues())
-            chain_residue_counts[index] = residue_count
-            chain_id = chain.id
-            print(f"Found chain index: {index}, id: '{chain_id}', residues: {residue_count}")
+        chain_ids = [chain.id for chain in chain_list]
 
-        if not chain_residue_counts:
-            raise ValueError("No chains found in the PDB structure.")
+        if chain_ID not in chain_ids:
+            raise ValueError(f"Chain ID {chain_ID} not found in PDB structure {input_pdb}.")
 
-        # Selection of the string with the largest number of residuals
-        chain_to_keep_index = max(chain_residue_counts, key=chain_residue_counts.get)
-        chain_to_keep_id = chain_list[chain_to_keep_index].id
-        logging.info(f"Keeping chain index {chain_to_keep_index} (id '{chain_to_keep_id}') with {chain_residue_counts[chain_to_keep_index]} residues.")
-        print(f"Keeping chain index {chain_to_keep_index} (id '{chain_to_keep_id}') with {chain_residue_counts[chain_to_keep_index]} residues.")
+        # Finding the index of the selected string
+        chain_to_keep_index = chain_ids.index(chain_ID)
 
-        # Deletion of all other chains
+        logging.info(f"Maintaining a chain with an index {chain_to_keep_index} (ID '{chain_ID}')")
+        print(f"Keeping the chain with the ID'{chain_ID}'")
+
+        # Removal of all other chains
         chains_to_remove = [i for i in range(len(chain_list)) if i != chain_to_keep_index]
         fixer.removeChains(chains_to_remove)
 
@@ -1168,21 +1164,6 @@ def generate_html_results(html_file, receptor_name, ligands_file, ligand_results
         logging.error(f"Error in generating HTML results: {e}")
         print(f"Error in generating HTML results: {e}")
         raise
-
-
-def sanitize_ligand_name(name):
-    """
-    Sanitize the ligand name by replacing invalid characters with underscores.
-    """
-    # Define a regex pattern for valid characters (alphanumeric and underscores)
-    valid_pattern = re.compile(r'[^A-Za-z0-9_-]')
-    sanitized_name = valid_pattern.sub('_', name)
-    # Additionally, remove leading/trailing underscores
-    sanitized_name = sanitized_name.strip('_')
-    # If the sanitized name is empty, assign a default name
-    if not sanitized_name:
-        sanitized_name = "ligand_unnamed"
-    return sanitized_name
 
 if __name__ == "__main__":
     main()

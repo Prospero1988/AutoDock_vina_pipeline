@@ -10,30 +10,29 @@ import bcrypt
 import threading
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from functools import partial
+import requests
+from Bio.PDB import PDBParser
+import gzip
+
+# Using @st.cache_resource requires Streamlit 1.18.0 or later.
+# If you have an earlier version, please upgrade Streamlit.
 
 # Set page configuration
 st.set_page_config(page_title="Docking Program", layout="centered")
 
-# Global settings for HTTP server
+# OBABEL system path
+OBABEL_PATH = "/usr/bin/obabel"
+
 HTTP_SERVER_PORT = 8001  # You can change this port if needed
-HTTPD = None  # Global HTTP Server instance
 
-def start_http_server(directory, port=HTTP_SERVER_PORT):
-    global HTTPD
-    handler = partial(SimpleHTTPRequestHandler, directory=directory)
-    HTTPD = HTTPServer(('0.0.0.0', port), handler)
-    HTTPD.serve_forever()
-
-def stop_http_server():
-    global HTTPD
-    if HTTPD is not None:
-        HTTPD.shutdown()
-        HTTPD = None
-
-# Ensure 'static' directory exists and clear 'static' when app starts
-if os.path.exists('static'):
-    shutil.rmtree('static')
-os.makedirs('static')
+@st.cache_resource
+def start_shared_http_server():
+    """Start a shared HTTP server serving 'static' directory, shared by all users."""
+    handler = partial(SimpleHTTPRequestHandler, directory='static')
+    httpd = HTTPServer(('0.0.0.0', HTTP_SERVER_PORT), handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    return httpd
 
 def validate_project_name(name):
     # Replace spaces with underscores
@@ -73,21 +72,30 @@ def username_exists(username):
 
 def add_new_user(username, hashed_password):
     try:
-        # Check if passwords.pw exists
         if os.path.exists('passwords.pw'):
             credentials = pd.read_csv('passwords.pw')
-            # Append new user
             new_user = pd.DataFrame({'user': [username], 'password': [hashed_password]})
             credentials = pd.concat([credentials, new_user], ignore_index=True)
         else:
-            # Create new DataFrame
             credentials = pd.DataFrame({'user': [username], 'password': [hashed_password]})
-        # Save to passwords.pw
         credentials.to_csv('passwords.pw', index=False)
     except Exception as e:
         st.error(f"Error adding new user: {e}")
 
+def reset_state():
+    keys_to_keep = ['logged_in', 'username']
+    for key in list(st.session_state.keys()):
+        if key not in keys_to_keep:
+            del st.session_state[key]
+
+
 def main():
+    # Ensure 'static' directory exists
+    os.makedirs('static', exist_ok=True)
+
+    # Start the shared HTTP server once for all
+    start_shared_http_server()
+
     # Initialize session state variables
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
@@ -97,9 +105,9 @@ def main():
         st.session_state.module = ''
     if 'progress' not in st.session_state:
         st.session_state.progress = 0
-    if 'http_server_thread' not in st.session_state:
-        st.session_state['http_server_thread'] = None
-
+    if 'show_users' not in st.session_state:
+        st.session_state.show_users = False
+        
     # Login screen
     if not st.session_state.logged_in:
         if 'show_register' in st.session_state and st.session_state.show_register:
@@ -111,7 +119,6 @@ def main():
             confirm_password = st.text_input("Confirm Password", type='password')
 
             if st.button("Register"):
-                # Validate username
                 if not re.match('^[a-z]+$', new_username):
                     st.error("Username must consist of lowercase letters only.")
                 elif new_password != confirm_password:
@@ -119,21 +126,20 @@ def main():
                 elif username_exists(new_username):
                     st.error("Username already exists.")
                 else:
-                    # Hash password and store new user
                     hashed_password = hash_password(new_password)
                     add_new_user(new_username, hashed_password)
                     st.success("User registered successfully. You can now log in.")
                     st.session_state.registration_successful = True
 
-            st.write(" ")  # Add more space        
+            st.write(" ")
 
-            # Jeden przycisk "Return to Log in"
             if st.button("Return to Log in", key="return_to_login"):
-                reset_state()
+                st.session_state.clear()
                 st.rerun()
 
         else:
-            st.title("Docking Program Login")
+            st.title("Auto Dock Vina web-workflow")
+            st.write("")
             st.write("Please enter your username and password.")
 
             username_input = st.text_input("Username")
@@ -141,39 +147,50 @@ def main():
 
             if st.button("Login"):
                 if check_credentials(username_input, password_input):
-                    # Clear 'static' when any user logs in
-                    if os.path.exists('static'):
-                        shutil.rmtree('static')
-                    os.makedirs('static')
+                    user_static_folder = os.path.join('static', username_input)
+                    if os.path.exists(user_static_folder):
+                        shutil.rmtree(user_static_folder)
+                        st.info(f"Removed existing static folder for user '{username_input}'")
+                    os.makedirs(user_static_folder, exist_ok=True)
                     st.session_state.logged_in = True
                     st.session_state.username = username_input
                     st.rerun()
                 else:
                     st.error("Wrong username or password. Please try again.")
 
+            st.write(" ")
             st.markdown(
-                '<div style="max-width: 300px; border: 1px solid; padding: 10px;">'
+                '<div style="max-width: 700px; border: 1px solid; padding: 10px;">'
                 'If you want to add a new user, remember that the login can only consist of lowercase letters without additional characters or numbers. The password can contain only basic letters and numbers.'
                 '</div>',
                 unsafe_allow_html=True
             )
-            st.write(" ")  # Add some space
+            st.write(" ")
 
-            # Add 'Add New User' and 'SHOW USERS' buttons below the text
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Add New User"):
-                    st.session_state.show_register = True
-                    st.rerun()
-            with col2:
-                if st.button("SHOW USERS"):
-                    try:
-                        credentials = pd.read_csv('passwords.pw')
-                        users_list = credentials['user'].tolist()
-                        st.write("Available Users:")
-                        st.write(users_list)
-                    except Exception as e:
-                        st.error(f"Error reading users: {e}")
+            if st.button("Add New User"):
+                st.session_state.show_register = True
+                st.rerun()
+
+            if st.button("SHOW USERS"):
+                st.session_state.show_users = not st.session_state.show_users  
+            if st.session_state.show_users:
+                try:
+                    credentials = pd.read_csv('passwords.pw')
+                    users_list = credentials['user'].tolist()
+                    st.write("Available Users:")
+                    st.write(users_list)
+                except Exception as e:
+                    st.error(f"Error reading users: {e}")
+                        
+            st.markdown("""
+---
+<div style="font-size: 12px; color: gray; text-align: center;">
+    Docking system based on <b>AutoDock Vina v.1.2.5</b> and <b>P2RANK v.2.4.2</b><br>
+    Author: <b>Arkadiusz Leniak</b> email: arkadiusz.leniak@gmail.com<br>
+    <a href="https://github.com/Prospero1988/AutoDock_vina_pipeline" target="_blank">GitHub</a>
+</div>
+""", unsafe_allow_html=True)
+ 
 
     else:
         # Main Menu
@@ -184,17 +201,14 @@ def main():
             modules = ['DOCKING', 'QUEUE', 'SHOW RESULTS', 'DOWNLOAD RESULTS', 'DELETE RESULTS', 'PyMOL Installation GUIDE', 'LOG OUT']
             keys = ['docking', 'queue', 'show_results', 'download', 'delete', 'install_guide', 'logout']
 
-
-            st.write(" ")  # Add some space
+            st.write(" ")
             for module_name, key in zip(modules, keys):
                 if st.button(module_name, key=key):
                     if module_name == 'LOG OUT':
-                        # Clean up static directory
-                        if os.path.exists('static'):
-                            shutil.rmtree('static')
-                        os.makedirs('static')
-                        # Stop the HTTP server if running
-                        stop_http_server()
+                        user_static_folder = os.path.join('static', st.session_state.username)
+                        if os.path.exists(user_static_folder):
+                            shutil.rmtree(user_static_folder)
+                            st.info(f"Removed static folder for user '{st.session_state.username}'")
                         reset_state()
                         st.session_state.logged_in = False
                         st.rerun()
@@ -203,8 +217,7 @@ def main():
                         if module_name == 'DOCKING':
                             st.session_state.progress = 1
                         st.rerun()
-                st.write(" ")  # Add some space
-
+                st.write(" ")
         elif st.session_state.module == 'DOCKING':
             docking_module()
         elif st.session_state.module == 'QUEUE':
@@ -289,53 +302,210 @@ def docking_module():
                     st.error("Invalid project name. Use only alphanumeric characters, numbers, or underscores (_).")
                     st.session_state.project_valid = False
 
-    # Step 2: Entering PDB codes
-    if st.session_state.project_valid and progress == 2:
+    # Step 2: Entering PDB Codes
+    if st.session_state.project_valid and st.session_state.progress == 2:
         st.header("2. Enter PDB Codes")
-        st.write("Enter PDB codes, separated by commas (e.g., 1A2B, 2X3C, 3Y4D).")
+        st.write("Enter PDB codes separated by commas (e.g., 1A2B, 2X3C, 3Y4D). In the next step, after downloading these files, you will have the option to select the chain (subunit) for docking.")
         pdb_input = st.text_area("PDB Codes", key='pdb_input')
-        st.write("Or upload a CSV file with PDB codes (one code per line).")
+        st.write("Or upload a CSV file with PDB codes and chain IDs for docking (two columns without headers). The file should be in the format:")
+        st.write("")
+        st.markdown("PDB code1, chain ID  \nPDB code2, chain ID  \nPDB code3, chain ID")
+        st.write("")
         pdb_file = st.file_uploader("Upload CSV", type=['csv'], key='pdb_file')
 
-        pdb_codes = []
         project_receptors_path = os.path.join('/home/docking_machine/dock', st.session_state.prefixed_project_name, 'receptors')
         receptors_csv_path = os.path.join(project_receptors_path, 'receptors.csv')
-        os.makedirs(project_receptors_path, exist_ok=True)
+        pdbs_dir = os.path.join(project_receptors_path, 'pdbs')  # Temporary directory for PDB files
+        os.makedirs(pdbs_dir, exist_ok=True)
 
+        # Initialize session state variables
+        if 'pdb_codes' not in st.session_state:
+            st.session_state.pdb_codes = []
+        if 'chains_available' not in st.session_state:
+            st.session_state.chains_available = {}
+        if 'chains_selected' not in st.session_state:
+            st.session_state.chains_selected = {}
+        if 'uploaded_pdb_chains' not in st.session_state:
+            st.session_state.uploaded_pdb_chains = {}
+        if 'download_progress' not in st.session_state:
+            st.session_state.download_progress = 0
+        if 'total_pdbs' not in st.session_state:
+            st.session_state.total_pdbs = 0
+        if 'receptors_confirmed' not in st.session_state:
+            st.session_state.receptors_confirmed = False  # New variable to track receptor confirmation
+
+        # Button to submit PDB codes
         if st.button("Submit PDB Codes"):
             if pdb_file:
-                # User uploaded a file
+                # User uploaded a CSV file
                 try:
                     df = pd.read_csv(pdb_file, header=None)
-                    if df.shape[1] == 1:
-                        pdb_codes = df[0].astype(str).tolist()
-                        # Save to receptors.csv
-                        df.to_csv(receptors_csv_path, index=False, header=False)
-                        st.success("PDB codes have been saved.")
-                        st.session_state.pdb_codes_saved = True
-                        st.session_state.progress = 3
-                        st.rerun()
+                    if df.shape[1] != 2:
+                        st.error("The CSV file must contain exactly two columns: the first for PDB codes and the second for chains.")
                     else:
-                        st.error("Invalid CSV format. Please ensure the file contains one column with PDB codes.")
+                        # Convert PDB codes to uppercase and remove unnecessary spaces
+                        st.session_state.pdb_codes = df.iloc[:, 0].astype(str).str.strip().str.upper().tolist()
+                        st.session_state.uploaded_pdb_chains = dict(zip(
+                            df.iloc[:, 0].astype(str).str.strip().str.upper(),
+                            df.iloc[:, 1].astype(str).str.strip()
+                        ))
+                        st.success("CSV file has been successfully loaded.")
                 except Exception as e:
                     st.error(f"Error reading CSV file: {e}")
             elif pdb_input:
-                # User entered PDB codes
+                # User manually entered PDB codes
                 pdb_input_clean = re.sub(r'\s+', '', pdb_input)
-                pdb_codes = [code.strip() for code in pdb_input_clean.split(',') if code.strip()]
-                if pdb_codes:
-                    # Save to receptors.csv
-                    with open(receptors_csv_path, 'w') as f:
-                        for code in pdb_codes:
-                            f.write(f"{code}\n")
-                    st.success("PDB codes have been saved.")
-                    st.session_state.pdb_codes_saved = True
-                    st.session_state.progress = 3
-                    st.rerun()
+                st.session_state.pdb_codes = [code.strip().upper() for code in pdb_input_clean.split(',') if code.strip()]
+                st.session_state.uploaded_pdb_chains = {}  # Clear previous entries
+                if st.session_state.pdb_codes:
+                    st.success("PDB codes have been loaded from manual entry.")
                 else:
                     st.error("Please enter valid PDB codes.")
             else:
                 st.error("Please enter PDB codes or upload a CSV file.")
+
+        # Downloading PDB files and identifying available chains
+        if st.session_state.pdb_codes and not st.session_state.chains_available:
+            st.info("Downloading PDB or mmCIF files and identifying available chains...")
+            parser = PDBParser(QUIET=True)
+            failed_downloads = []
+            st.session_state.total_pdbs = len(st.session_state.pdb_codes)
+            progress_bar = st.progress(0)
+
+            for idx, pdb_code in enumerate(st.session_state.pdb_codes, start=1):
+                pdb_file_path = os.path.join(pdbs_dir, f"{pdb_code}.pdb")
+                if not os.path.exists(pdb_file_path):
+                    try:
+                        # Attempt to download the PDB file
+                        url_pdb = f"https://files.rcsb.org/download/{pdb_code}.pdb"
+                        response_pdb = requests.get(url_pdb)
+                        if response_pdb.status_code == 200:
+                            with open(pdb_file_path, 'w') as f:
+                                f.write(response_pdb.text)
+                            # Parse PDB to get chains
+                            structure = parser.get_structure(pdb_code, pdb_file_path)
+                            chains = sorted([chain.id for chain in structure.get_chains()])
+                            st.session_state.chains_available[pdb_code] = chains
+                        else:
+                            # If PDB download failed, attempt to download mmCIF
+                            url_cif = f"https://files.rcsb.org/download/{pdb_code}.cif"
+                            response_cif = requests.get(url_cif)
+                            if response_cif.status_code == 200:
+                                cif_file_path = os.path.join(pdbs_dir, f"{pdb_code}.cif")
+                                with open(cif_file_path, 'w') as f:
+                                    f.write(response_cif.text)
+                                
+                                # Convert mmCIF to PDB using Open Babel
+                                converted_pdb_path = pdb_file_path  # Target PDB file
+                                try:
+                                    subprocess.run([
+                                        OBABEL_PATH,
+                                        "-i", "cif",
+                                        cif_file_path,
+                                        "-o", "pdb",
+                                        "-O", converted_pdb_path
+                                    ], check=True)
+                                    
+                                    # Check if conversion was successful
+                                    if os.path.exists(converted_pdb_path):
+                                        # Parse PDB to get chains
+                                        structure = parser.get_structure(pdb_code, converted_pdb_path)
+                                        chains = sorted([chain.id for chain in structure.get_chains()])
+                                        st.session_state.chains_available[pdb_code] = chains
+                                        
+                                        # Remove mmCIF file after conversion
+                                        os.remove(cif_file_path)
+                                    else:
+                                        raise FileNotFoundError(f"Conversion from mmCIF to PDB for {pdb_code} failed.")
+                                except subprocess.CalledProcessError as e:
+                                    st.error(f"Error converting mmCIF to PDB for {pdb_code}: {e}")
+                                    failed_downloads.append(pdb_code)
+                            else:
+                                failed_downloads.append(pdb_code)
+                    except Exception as e:
+                        st.error(f"Error processing PDB code {pdb_code}: {e}")
+                        failed_downloads.append(pdb_code)
+                else:
+                    # PDB file already exists
+                    try:
+                        structure = parser.get_structure(pdb_code, pdb_file_path)
+                        chains = sorted([chain.id for chain in structure.get_chains()])
+                        st.session_state.chains_available[pdb_code] = chains
+                    except Exception as e:
+                        st.error(f"Error parsing existing PDB file for {pdb_code}: {e}")
+                        failed_downloads.append(pdb_code)
+                
+                # Update progress bar
+                st.session_state.download_progress = idx / st.session_state.total_pdbs
+                progress_bar.progress(st.session_state.download_progress)
+
+            if failed_downloads:
+                st.error(f"Failed to download the following PDB/mmCIF codes: {', '.join(failed_downloads)}")
+            else:
+                st.success("All PDB/mmCIF files have been successfully downloaded and processed.")
+            progress_bar.empty()  # Remove progress bar after completion
+
+        # Displaying chain selection options for each receptor
+        if st.session_state.chains_available:
+            st.header("Select Chain for Each Receptor")
+            for pdb_code in st.session_state.pdb_codes:
+                if pdb_code in st.session_state.chains_available:
+                    available_chains = st.session_state.chains_available[pdb_code]
+                    if not available_chains:
+                        st.warning(f"No chains found for PDB code {pdb_code}.")
+                        continue
+
+                    # Get the desired chain from the CSV file or set the first as default
+                    desired_chain = st.session_state.uploaded_pdb_chains.get(pdb_code, available_chains[0])
+
+                    # If the uploaded chain is not available, set to the first available
+                    if desired_chain not in available_chains:
+                        selected_chain = available_chains[0]
+                        st.warning(f"Chain '{desired_chain}' for PDB {pdb_code} is not available. Set to '{selected_chain}'.")
+                    else:
+                        selected_chain = desired_chain
+
+                    # Display selectbox with the default selected chain
+                    selected = st.selectbox(
+                        f"Select chain for {pdb_code}",
+                        options=available_chains,
+                        index=available_chains.index(selected_chain),
+                        key=f"chain_select_{pdb_code}"
+                    )
+                    st.session_state.chains_selected[pdb_code] = selected
+
+            # Button to confirm and save receptors
+            if st.button("Confirm Receptors"):
+                if st.session_state.chains_selected:
+                    try:
+                        # Save selected chains to receptors.csv without headers
+                        receptors_df = pd.DataFrame([
+                            [pdb, chain] for pdb, chain in st.session_state.chains_selected.items()
+                        ])
+                        receptors_df.to_csv(receptors_csv_path, index=False, header=False)
+                        st.success(f"Receptors have been saved in {os.path.basename(receptors_csv_path)}.")
+                        st.session_state.receptors_confirmed = True  # Set receptor confirmation flag
+                    except Exception as e:
+                        st.error(f"Error saving receptors.csv: {e}")
+                else:
+                    st.error("No chains selected to save.")
+
+            # Button to proceed to the next step - appears only after receptors are confirmed
+            if st.session_state.receptors_confirmed:
+                if st.button("Proceed to Next Step"):
+                    try:
+                        # Remove temporary directory with PDB files
+                        if os.path.exists(pdbs_dir):
+                            shutil.rmtree(pdbs_dir)
+                            st.success("Temporary directory with PDB files has been removed.")
+                        else:
+                            st.warning("Temporary directory with PDB files does not exist.")
+                        
+                        # Move to the next stage
+                        st.session_state.progress = 3
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error removing temporary PDB directory: {e}")
 
     # Step 3: Uploading ligand files
     if st.session_state.project_valid and progress == 3:
@@ -490,6 +660,7 @@ python3 init_docking.py --pdb_ids receptors.csv --ligands {st.session_state.liga
                 except Exception as e:
                     st.error(f"Error submitting job: {e}")
 
+
 def queue_module():
     st.title("QUEUE Module")
     st.write("Current SLURM queue:")
@@ -508,14 +679,11 @@ def queue_module():
         except Exception as e:
             st.error(f"Error fetching SLURM queue: {e}")
 
-    # Display the queue initially
     display_queue()
 
-    # Add 'REFRESH' button to refresh the queue
     if st.button("REFRESH"):
         st.rerun()
 
-    # Add 'Return to MENU' button at the bottom
     if st.button("Return to MENU", key='return_to_menu_queue'):
         reset_state()
         st.rerun()
@@ -618,9 +786,6 @@ def delete_results_module():
 def results_module():
     st.title("SHOW RESULTS Module")
 
-    if 'http_server_thread' not in st.session_state:
-        st.session_state['http_server_thread'] = None
-
     dock_folder = '/home/docking_machine/dock'
     user_prefix = f"{st.session_state.username}_"
     user_projects = [f for f in os.listdir(dock_folder) if f.startswith(user_prefix)]
@@ -639,12 +804,16 @@ def results_module():
     if selected_project:
         project_folder = os.path.join(dock_folder, user_prefix + selected_project)
         receptors_csv_path = os.path.join(project_folder, 'receptors', 'receptors.csv')
+
         if os.path.exists(receptors_csv_path):
-            with open(receptors_csv_path, 'r') as f:
-                receptors = [line.strip() for line in f if line.strip()]
+            df_receptors = pd.read_csv(receptors_csv_path, header=None, names=['PDB_ID', 'Chain_ID'])
+            df_receptors['PDB_ID'] = df_receptors['PDB_ID'].str.strip().str.upper()
+            df_receptors['Chain_ID'] = df_receptors['Chain_ID'].str.strip().str.upper()
+            df_receptors['Combined'] = df_receptors['PDB_ID'] + "_" + df_receptors['Chain_ID']
+            receptors = df_receptors['Combined'].tolist()
         else:
-            receptors = []
-            st.error("No receptors.csv file found in the project.")
+            st.error(f"Receptors file not found: {receptors_csv_path}")
+            return
 
         if receptors:
             st.write("Select a receptor:")
@@ -658,21 +827,19 @@ def results_module():
                         html_file_name = html_files[0]
 
                         if st.button("SHOW INTERACTIVE RESULTS"):
-                            static_receptor_folder = os.path.join('static', selected_receptor)
+                            static_receptor_folder = os.path.join('static', st.session_state.username, selected_project, selected_receptor)
+                            os.makedirs(os.path.dirname(static_receptor_folder), exist_ok=True)
                             if os.path.exists(static_receptor_folder):
                                 shutil.rmtree(static_receptor_folder)
+
                             try:
                                 shutil.copytree(receptor_folder, static_receptor_folder)
                             except Exception as e:
                                 st.error(f"Error copying files: {e}")
                                 return
 
-                            # Start HTTP server if not already running
-                            if st.session_state['http_server_thread'] is None or not st.session_state['http_server_thread'].is_alive():
-                                st.session_state['http_server_thread'] = threading.Thread(target=start_http_server, args=('static',), daemon=True)
-                                st.session_state['http_server_thread'].start()
-
-                            html_url = f"http://172.22.31.82:{HTTP_SERVER_PORT}/{selected_receptor}/{html_file_name}"
+                            # The shared server is already running
+                            html_url = f"http://172.22.31.82:{HTTP_SERVER_PORT}/{st.session_state.username}/{selected_project}/{selected_receptor}/{html_file_name}"
                             st.markdown(f'<a href="{html_url}" target="_blank">Open Interactive Results in New Tab</a>', unsafe_allow_html=True)
                     else:
                         st.error("No HTML file found in the receptor's folder.")
@@ -698,19 +865,14 @@ def results_module():
             st.error("No receptors found in receptors.csv.")
 
     if st.button("Return to MENU", key='return_to_menu_results'):
-        if os.path.exists('static'):
-            shutil.rmtree('static')
-        os.makedirs('static')
         reset_state()
         st.rerun()
 
 def install_guide_module():
     st.title("Installation Guide for Open-PyMOL on Windows")
 
-    # Twój kod HTML jako string (bez tagów <html>, <head>, <body>)
     html_content = """
     <div class="frame">
-        
         <h2>1. Download and Install Miniconda</h2>
         <ol>
             <li>
@@ -781,19 +943,18 @@ def install_guide_module():
     </div>
     """
 
-    # Definiowanie stylu ramki
     frame_style = """
     <style>
         .frame {
-            max-width: 1600px; /* Zwiększona szerokość o 200px */
-            width: 100%; /* Ustawienie szerokości na 100% kontenera */
+            max-width: 1600px;
+            width: 100%;
             background-color: white;
-            color: black; /* Ustawienie koloru tekstu na czarny */
+            color: black;
             padding: 20px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             box-sizing: border-box;
             overflow-x: auto;
-            margin: 0 auto; /* Wycentrowanie ramki */
+            margin: 0 auto;
         }
         .frame h1, .frame h2 {
             color: black;
@@ -824,28 +985,12 @@ def install_guide_module():
     </style>
     """
 
-    # Wyświetlanie stylu i HTML w komponentach.html
     components.html(frame_style + html_content, height=1150, scrolling=True)
 
     st.markdown("<hr>", unsafe_allow_html=True)
     if st.button("RETURN TO MENU", key='return_to_menu_install_guide'):
         reset_state()
         st.rerun()
-
-def reset_state():
-    st.session_state.module = ''
-    st.session_state.progress = 0
-    keys_to_reset = [
-        'project_name', 'project_valid', 'project_exists', 'prefixed_project_name',
-        'pdb_codes_saved', 'pdb_input', 'pdb_file', 'ligand_file_name',
-        'ligand_uploaded', 'parameters_set', 'parameters', 'selected_projects_download',
-        'selected_projects_delete', 'confirm_delete', 'show_register', 'registration_successful',
-        'selected_project', 'selected_receptor',
-        'selected_projects_install_guide'
-    ]
-    for key in keys_to_reset:
-        if key in st.session_state:
-            del st.session_state[key]
 
 if __name__ == "__main__":
     main()
