@@ -700,9 +700,35 @@ def queue_module():
     if st.button("REFRESH"):
         st.rerun()
 
+    # Section for canceling user's job
+    st.write("Cancel a job from the queue:")
+    job_id_input = st.text_input("Enter the JOB_ID of the job you want to cancel:")
+
+    if st.button("Cancel Job"):
+        # Check if the job belongs to the current user
+        cmd_check = ['squeue', '-j', job_id_input, '-o', '%j', '--noheader']
+        result_check = subprocess.run(cmd_check, stdout=subprocess.PIPE, text=True)
+        job_name = result_check.stdout.strip()
+
+        if job_name:
+            # If the job name exists and starts with "username_"
+            if job_name.startswith(f"{st.session_state.username}_"):
+                # Attempt to cancel the job
+                cmd_cancel = ['scancel', job_id_input]
+                result_cancel = subprocess.run(cmd_cancel)
+                if result_cancel.returncode == 0:
+                    st.success(f"The job {job_id_input} has been cancelled and removed from the queue.")
+                else:
+                    st.error(f"Failed to cancel job {job_id_input}. Please try again.")
+            else:
+                st.error("This job does not belong to you. You are not authorized to remove it.")
+        else:
+            st.error("No job found with the provided JOB_ID.")
+
     if st.button("Return to MENU", key='return_to_menu_queue'):
         reset_state()
         st.rerun()
+
 
 def download_results_module():
     st.title("DOWNLOAD RESULTS Module")
