@@ -181,61 +181,8 @@ sudo apt update && sudo apt upgrade -y
 Install the required dependencies:
 
 ```bash
-sudo apt install -y munge libmunge-dev libmunge2 build-essential slurm-wlm slurm-client
+sudo apt install -y build-essential slurm-wlm slurm-client
 ```
-
-Create an authentication key for Munge:
-
-```bash
-sudo /usr/sbin/create-munge-key
-```
-
-If it's not working you have to create munge-key manually. Log into root account:
-
-```bash
-su - root
-```
-
-Create munge key and add permissions:
-
-```bash
-sudo dd if=/dev/urandom bs=1 count=1024 > /etc/munge/munge.key
-sudo chown munge:munge /etc/munge/munge.key
-sudo chmod 400 /etc/munge/munge.key
-```
-
-Check if key was created:
-
-```bash
-ls -l /etc/munge/munge.key
-```
-
-You should see something like this:
-```bash
--r-------- 1 munge munge 1024 <date of creation> /etc/munge/munge.key
-```
-
-Set appropriate permissions:
-
-```bash
-sudo chown -R munge: /etc/munge /var/lib/munge /var/log/munge
-sudo chmod 700 /etc/munge /var/lib/munge /var/log/munge
-```
-
-Start and enable the Munge service:
-
-```bash
-sudo systemctl enable munge
-sudo systemctl start munge
-```
-
-Verify Munge is working correctly:
-
-```bash
-munge -n | unmunge
-```
-
-*Expected output: Success (0).*
 
 Add a dedicated user for SLURM:
 
@@ -268,7 +215,7 @@ Edit the SLURM configuration file:
 sudo nano /etc/slurm/slurm.conf
 ```
 
-Add the following minimal configuration, replacing `<YOUR_CLUSTER_NAME>` with your preferred cluster name and `<YOUR_HOSTNAME>` with the hostname obtained earlier:
+Add the following minimal configuration, replacing `<YOUR_CLUSTER_NAME>` with your preferred cluster name and `<YOUR_HOSTNAME>` with the hostname obtained earlier. In CPUs and RealMemory put your number of CPUs and RAM memory in your system, in this case it's 16 CPU cores and 64GB of RAM memory:
 
 ```conf
 # Basic Configuration
@@ -278,7 +225,7 @@ ControlMachine=<YOUR_HOSTNAME>
 # Ports and Authentication
 SlurmctldPort=6817
 SlurmdPort=6818
-AuthType=auth/munge
+AuthType=auth/none
 
 # Logging
 SlurmdLogFile=/var/log/slurm/slurmd.log
@@ -327,7 +274,6 @@ sudo systemctl status slurmd
 Ensure all services start automatically on boot:
 
 ```bash
-sudo systemctl enable munge
 sudo systemctl enable slurmctld
 sudo systemctl enable slurmd
 ```
