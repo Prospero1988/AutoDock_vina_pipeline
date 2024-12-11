@@ -72,17 +72,16 @@ run_command(['wget', 'https://github.com/rdk/p2rank/releases/download/2.4.2/p2ra
 print("Extracting P2Rank...")
 run_command(['tar', '-xzf', 'p2rank_2.4.2.tar.gz'])
 
+# Ensure directory exists
+if not os.path.exists('p2rank_2.4.2'):
+    raise FileNotFoundError("Directory 'p2rank_2.4.2' not found after extracting.")
+
 # Move P2Rank to /opt
 print("Moving P2Rank to /opt/p2rank...")
 if os.path.exists('/opt/p2rank'):
     print("Removing existing P2Rank installation...")
     run_command(['sudo', 'rm', '-rf', '/opt/p2rank'])
 run_command(['sudo', 'mv', 'p2rank_2.4.2', '/opt/p2rank'])
-
-# Adjust P2Rank directory structure
-print("Adjusting P2Rank directory structure...")
-run_command(['sudo', 'mv', '/opt/p2rank/*', '/opt/p2rank'])
-run_command(['sudo', 'rmdir', '/opt/p2rank/p2rank_2.4.2'])
 
 # Update permissions for P2Rank
 print("Updating permissions for /opt/p2rank...")

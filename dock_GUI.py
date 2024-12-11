@@ -553,16 +553,16 @@ def docking_module():
     # Step 4: Configuration of docking parameters
     if st.session_state.project_valid and progress == 4:
         st.header("4. Docking Parameters")
-        st.write("Select and configure docking parameters.")
+        st.write("Select and configure docking parameters. If you do not select any of the parameters their values will be set as default and you can proceed to docking.")
 
         # Initialize parameters with default values
         parameters = {
-            'tol_x': {'value': '', 'default': '', 'description': 'Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (optional).'},
-            'tol_y': {'value': '', 'default': '', 'description': 'Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (optional).'},
-            'tol_z': {'value': '', 'default': '', 'description': 'Tolerance in Ångströms to expand the docking pocket dimension in Z beyond those defined by P2Rank (optional).'},
             'pckt': {'value': '1', 'default': '1', 'description': 'Pocket number to use from P2Rank predictions (default: 1).'},
             'exhaust': {'value': '16', 'default': '16', 'description': 'Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).'},
             'energy_range': {'value': '4', 'default': '4', 'description': 'Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 4).'},
+            'tol_x': {'value': '', 'default': '', 'description': 'Tolerance in Ångströms to expand the docking pocket dimension in X beyond those defined by P2Rank (optional).'},
+            'tol_y': {'value': '', 'default': '', 'description': 'Tolerance in Ångströms to expand the docking pocket dimension in Y beyond those defined by P2Rank (optional).'},
+            'tol_z': {'value': '', 'default': '', 'description': 'Tolerance in Ångströms to expand the docking pocket dimension in Z beyond those defined by P2Rank (optional).'},
             'offset_x': {'value': '0', 'default': '0', 'description': 'Offset in Ångströms to shift the center of the docking grid box along the X-axis (optional, default: 0).'},
             'offset_y': {'value': '0', 'default': '0', 'description': 'Offset in Ångströms to shift the center of the docking grid box along the Y-axis (optional, default: 0).'},
             'offset_z': {'value': '0', 'default': '0', 'description': 'Offset in Ångströms to shift the center of the docking grid box along the Z-axis (optional, default: 0).'},
@@ -683,12 +683,12 @@ def queue_module():
 
     def display_queue():
         try:
-            cmd = ['squeue', '-r', '-o', '%i,%j,%T,%M,%S', '--noheader']
+            cmd = ['squeue', '-r', '-o', '%i,%j,%T,%M,%V', '--noheader']
             result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
             output = result.stdout.strip().split('\n')
             rows = [line.strip().split(',') for line in output if line.strip()]
             if rows:
-                df = pd.DataFrame(rows, columns=['JobID', 'JobName', 'State', 'TimeUsed', 'StartTime'])
+                df = pd.DataFrame(rows, columns=['JobID', 'JobName', 'State', 'TimeUsed', 'SubmitTime'])
                 st.table(df)
             else:
                 st.write("No jobs in the queue.")
