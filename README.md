@@ -189,6 +189,31 @@ Create an authentication key for Munge:
 sudo /usr/sbin/create-munge-key
 ```
 
+If it's not working you have to create munge-key manually. Log to root account:
+
+```bash
+su - root
+```
+
+Create munge key and add permissions:
+
+```bash
+sudo dd if=/dev/urandom bs=1 count=1024 > /etc/munge/munge.key
+sudo chown munge:munge /etc/munge/munge.key
+sudo chmod 400 /etc/munge/munge.key
+```
+
+Check if key was created:
+
+```bash
+ls -l /etc/munge/munge.key
+```
+
+You should see something like this:
+```bash
+-r-------- 1 munge munge 1024 <data-utworzenia> /etc/munge/munge.key
+```
+
 Set appropriate permissions:
 
 ```bash
