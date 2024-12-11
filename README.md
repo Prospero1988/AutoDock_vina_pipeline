@@ -164,7 +164,7 @@ Navigate to the installation directory and run the installation script. **Do not
 ```bash
 cd /home/docking_machine/dock/installation
 chmod +x install.sh
-./install.sh
+bash install.sh
 ```
 
 At this stage, you can already work with the program via the command line by running the `init_docking.py` Python script. However, this method is not very convenient and does not support the workload manager or the graphical interface/server setup.
