@@ -4,9 +4,7 @@
 
 - [Description](#description)
 - [UPDATES](#updates)
-- [Web Interface](#web-interface)
-- [Output Example](#output-example)
-- [Results Screenshots](#results-screenshots)
+- [Program Graphical User Interface](#web-interface)
 - [Technologies Used and Requirements](#technologies-used)
 - [Installation](#installation)
 - [Running the Application](#running-the-application)
@@ -24,9 +22,9 @@ This repository provides an automated docking solution for ligands and receptor 
 
 The program is built on open-source libraries and solutions. It implements a user account system, facilitating easy project management, handling of generated data, and seamless navigation. The installation process is comprehensive, enabling even beginner users to utilize this tool effectively. The system is developed and tested on **Ubuntu 22.04** as a compute hosting server. Access via a web browser is unrestricted by the system, allowing the program to run locally on an Ubuntu machine or be configured as a server on a local network, accessible from any computer within the same LAN.
 
-### Notes
+Due to the rather lengthy and manual process of local installation, which is additionally limited to Linux systems only, a docker image has been prepared, which you just need to mount and you get a functional program on any system that supports the docker. See the installation chapter for details.
 
-I am still working on this project and adding new features. The uploaded repository is fully functional. If you have any suggestions then feel free to contact me, or open a discussion or add a post.
+In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
 ### Problems and support
 
@@ -41,16 +39,12 @@ If you encounter any problems with the installation or operation of the docking 
 
 ## Web Interface
 
-The interface is built on the Sreamlit framework. After installation and configuration, the whole thing functions perfectly from a web browser.
+The interface is built on the Sreamlit framework with a small Flask feature funtcion to grab IP for HTML interactive results internal server. After installation and configuration (or mounting docker image into container), the whole thing functions perfectly from a web browser.
 
 </br>
 <div align="center">
     <img src="img/interface.png" alt="Presentation of web interface" title="Presentation of web interface">
 </div>
-
-## Output Example
-
-In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
 ## Results Screenshots
 </br>
@@ -76,29 +70,21 @@ In this repository, there is a downloadable file [output_example.zip](https://gi
 - **Biopython**, **RDKit**, **Open Babel**, **open-PyMOL**: Molecular handling, visualization, and preparation tools.
 - **SLURM**: Workload manager for distributed computing and queue management.
 - **Streamlit 1.40.2**: Frontend web interface.
-
+- **Docker**: Containerization app
+  
 ## Requirements
 
-- **Operating System**: Ubuntu 22.04 (or other compatible Debian distributions). For advanced users, any Linux distribution can be used, but library and installation package adjustments may be necessary.
-  
+- System with installed **Docker** containerization app
+-  **OR**
+- Ubuntu 22.04 (or other compatible Debian distributions). For advanced users, any Linux distribution can be used, but library and installation package adjustments may be necessary.
+ 
 ### Python Libraries
 
-- `biopython`
-- `biopandas`
-- `pandas`
-- `pubchempy`
-- `tqdm`
-- `matplotlib`
-- `scipy`
-- `rdkit`
-- `pdbfixer`
-- `pymol-open-source`
-- `streamlit`
-- `bcrypt`
+ `biopython` `biopandas` `pandas` `pubchempy` `tqdm` `matplotlib` `scipy` `rdkit` `pdbfixer` `pymol-open-source` `streamlit` `bcrypt`
 
-**Java Runtime Environment (JRE)**
+### Java Runtime Environment (JRE)
 
-## Installation
+# Installation
 
 The installation process is divided into several main stages. The program is configured to operate under a specific user account and name. If you wish to modify this, locate all instances of `docking_machine` in the `dock_GUI.py` file and replace them with your desired username. The docking server will be set up on this account.
 
