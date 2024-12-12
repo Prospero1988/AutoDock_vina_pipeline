@@ -21,7 +21,7 @@ st.set_page_config(page_title="Docking Program", layout="centered")
 # Define paths and constants
 OBABEL_PATH = "/usr/bin/obabel"
 HTTP_SERVER_PORT = 8001
-RESULTS_DIR = '/home/docking_machine/dock/results'
+RESULTS_DIR = '/root/dock/results'
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 

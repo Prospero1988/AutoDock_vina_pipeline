@@ -1,0 +1,12 @@
+services:
+  autodock:
+    image: autodock
+    container_name: autodock_vina_machine
+    hostname: auto_dock
+    ports:
+      - "8501:8501"  # Port open for Streamlit
+      - "8001:8001"  # Port open for HTTP serwera
+    volumes:
+      - C:\Users\aleniak\autodock\dock\results:/root/dock/results
+    stdin_open: true
+    tty: true
