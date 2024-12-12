@@ -4,11 +4,9 @@
 
 - [Description](#description)
 - [UPDATES](#updates)
-- [Web Interface](#web-interface)
-- [Output Example](#output-example)
-- [Results Screenshots](#results-screenshots)
+- [Program Graphical User Interface](#web-interface)
 - [Technologies Used and Requirements](#technologies-used)
-- [Installation](#installation)
+- [Installation / DOCKER Container](#installation)
 - [Running the Application](#running-the-application)
 - [Docking Work Flow](#docking-work-flow)
 - [Docking Parameters explained](#docking-parameters-explained)
@@ -24,9 +22,9 @@ This repository provides an automated docking solution for ligands and receptor 
 
 The program is built on open-source libraries and solutions. It implements a user account system, facilitating easy project management, handling of generated data, and seamless navigation. The installation process is comprehensive, enabling even beginner users to utilize this tool effectively. The system is developed and tested on **Ubuntu 22.04** as a compute hosting server. Access via a web browser is unrestricted by the system, allowing the program to run locally on an Ubuntu machine or be configured as a server on a local network, accessible from any computer within the same LAN.
 
-### Notes
+Due to the rather lengthy and manual process of local installation, which is additionally limited to Linux systems only, a docker image has been prepared, which you just need to mount and you get a functional program on any system that supports the docker. See the installation chapter for details.
 
-I am still working on this project and adding new features. The uploaded repository is fully functional. If you have any suggestions then feel free to contact me, or open a discussion or add a post.
+In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
 ### Problems and support
 
@@ -34,23 +32,19 @@ If you encounter any problems with the installation or operation of the docking 
 
 ## UPDATES
 
-- !!! I'm working on building docker image. It'll be ready to use without instalation. Stay tuned!
+- Added function to cancel jobs from Queue.
 - Some PDB codes in the PDB database do not correspond to actual .pdb files, because only mmCIF files are available. The program, in case it cannot download a .pdb file, tries to download a .cif file. After successfully downloading it, it converts it to .pdb and passes it on for further processing and docking.
 - Automatic selection of a chain with a receptor did not work due to the lack of uniformity in chain naming. Now, when PDB codes are given, the structures are retrieved, a list of chains is loaded, and the user has to select for each receptor the appropriate chain containing the receptor, or docking site, from a drop-down list. Alternatively, an input can be prepared in the form of a csv file that contains PDB codes and chain IDs. After loading the CSV file, a list of receptors with selected chains is shown, which can be modified, or accepted and passed on for further calculations.
 - Added an option in the QUEUE module where a user can cancel his own task. A user cannot cancel other users' tasks.
 
 ## Web Interface
 
-The interface is built on the Sreamlit framework. After installation and configuration, the whole thing functions perfectly from a web browser.
+The interface is built on the Streamlit framework. After installation and configuration (or mounting docker image into container), the whole thing functions perfectly from a web browser.
 
 </br>
 <div align="center">
     <img src="img/interface.png" alt="Presentation of web interface" title="Presentation of web interface">
 </div>
-
-## Output Example
-
-In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
 ## Results Screenshots
 </br>
@@ -76,31 +70,59 @@ In this repository, there is a downloadable file [output_example.zip](https://gi
 - **Biopython**, **RDKit**, **Open Babel**, **open-PyMOL**: Molecular handling, visualization, and preparation tools.
 - **SLURM**: Workload manager for distributed computing and queue management.
 - **Streamlit 1.40.2**: Frontend web interface.
-
+- **Docker**: Containerization app
+  
 ## Requirements
 
-- **Operating System**: Ubuntu 22.04 (or other compatible Debian distributions). For advanced users, any Linux distribution can be used, but library and installation package adjustments may be necessary.
-  
+- System with installed **Docker** containerization app
+-  **OR**
+- Ubuntu 22.04 (or other compatible Debian distributions). For advanced users, any Linux distribution can be used, but library and installation package adjustments may be necessary.
+ 
 ### Python Libraries
 
-- `biopython`
-- `biopandas`
-- `pandas`
-- `pubchempy`
-- `tqdm`
-- `matplotlib`
-- `scipy`
-- `rdkit`
-- `pdbfixer`
-- `pymol-open-source`
-- `streamlit`
-- `bcrypt`
+ `biopython` `biopandas` `pandas` `pubchempy` `tqdm` `matplotlib` `scipy` `rdkit` `pdbfixer` `pymol-open-source` `streamlit` `bcrypt`
 
-**Java Runtime Environment (JRE)**
+### Java Runtime Environment (JRE)
 
-## Installation
+# Installation
 
-The installation process is divided into several main stages. The program is configured to operate under a specific user account and name. If you wish to modify this, locate all instances of `docking_machine` in the `dock_GUI.py` file and replace them with your desired username. The docking server will be set up on this account.
+There are two ways to set up the program for use. The easier and faster option is to use the Docker container I have prepared; you simply need to mount and run it. Alternatively, you can build the container yourself—the necessary files, including the Dockerfile, are available in the `dock_container` folder.
+
+The second method involves a local installation on Debian/Ubuntu. This approach is significantly more complex and time-consuming and requires some experience with Linux. However, I have aimed to describe the process thoroughly and as clearly as possible.
+
+## DOCKER Container from image
+
+The instructions are written for Windows 10/11. There may be minor differences for other operating systems. To get started, install Docker on your system (for Windows, this is Docker Desktop). On Windows, install and use it with an account that has administrator privileges, as otherwise, you may encounter issues with directory access permissions. While there are workarounds, it is easier to use an account with administrator rights.
+
+Launch the Docker application. Open the system console terminal (Win + R, type `cmd`) and enter the following command to download the Docker image:
+
+```
+docker image pull prospero88/autodock
+```
+
+This command will download the Docker image, which is quite large—approximately 10 GB in size. To run it, navigate to the directory where you cloned the GitHub repository and locate the `docker-compose.yml` file, or simply download it manually from GitHub using your browser.
+
+Open the `docker-compose.yml` file with a text editor and modify the directory mount point where the results will be saved. You need to create such a directory on your computer. The line to modify is:
+
+```
+- C:\Users\aleniak\autodock\dock\results:/root/dock/results
+```
+
+Replace `C:\Users\aleniak\autodock\dock\results` with the path to the directory you created on your computer where the results will be stored locally. Save and close the file.
+
+The final step is to start the container. In the `cmd` console, navigate to the directory containing the `docker-compose.yml` file using the `cd` command. Then enter the following command:
+
+```
+docker-compose up -d
+```
+
+And that's it. The container is now running and configured. You can open your web browser and go to [http://localhost:8501/](http://localhost:8501/) to connect to the docking program.
+
+This final command will always start the container if you restart your system.
+
+## Local Linux Installation
+
+The installation process is divided into several main stages. The program is configured to operate under a specific user account and name. If you wish to modify this, locate the global instances of variable `RESULTS_DIR` in the `dock_GUI.py` file and replace them with your desired username. The docking server will be set up on this account.
 
 ### 1. Create a User Account for Docking
 
@@ -494,7 +516,10 @@ By configuring NGINX as a service and enabling it, it will run automatically at 
 
 
 
-## Running the Application
+
+
+
+# Running the Application
 
 ### Accessing Locally
 
@@ -532,7 +557,7 @@ To access the application from other computers within your Local Area Network (L
     http://192.168.1.100
     ```
 
-    Replace `192.168.1.100` with your server's actual LAN IP address.
+    Replace `192.168.1.100` with your server's actual LAN IP address. If you are not using nginx or you are connecting to the Docker container add port :8501 at the end of the address.  `192.168.1.100:8501`
 
 ### Functionalities Overview
 
@@ -544,7 +569,7 @@ The Docking Program provides the following functionalities:
 
 - **Docking Submission**: Configure docking parameters and submit docking jobs to the SLURM workload manager for high-throughput molecular docking.
 
-- **Queue Monitoring**: View the current SLURM job queue and monitor the status of submitted jobs.
+- **Queue Monitoring**: View the current SLURM job queue and monitor the status of submitted jobs or cancel them.
 
 - **Results Visualization and Download**: Access interactive results generated by the docking process and download them as CSV files.
 
@@ -580,20 +605,21 @@ The Docking Program provides the following functionalities:
    - Refresh the queue status as needed.
 
 5. **SHOW RESULTS Module**:
+   - If you're connecting locally, leave Host address as 'localhost'. If you're connecting via LAN or an external IP, enter the host address you're connecting to. For example, if you're connecting to 172.17.0.2:8501, enter 172.17.0.2 and confirm.
    - Select a project and receptor to view interactive docking results.
    - Access interactive results in a new browser tab.
    - Download results as CSV files.
 
-6. **DOWNLOAD RESULTS Module**:
+7. **DOWNLOAD RESULTS Module**:
    - Select projects to download their results as a ZIP archive.
 
-7. **DELETE RESULTS Module**:
+8. **DELETE RESULTS Module**:
    - Select projects to delete their associated data and results.
 
-8. **PyMOL Installation GUIDE**:
+9. **PyMOL Installation GUIDE**:
    - Access a detailed guide for installing Open-PyMOL on Windows to visualize molecular structures.
 
-9. **LOG OUT**:
+10. **LOG OUT**:
    - Log out of your account securely.
 
 ### Executable Python Script
