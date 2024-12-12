@@ -9,29 +9,10 @@
 - [Results Screenshots](#results-screenshots)
 - [Technologies Used and Requirements](#technologies-used)
 - [Installation](#installation)
-  - [1. Create a User Account for Docking](#1-create-a-user-account-for-docking)
-  - [2. Clone the Repository](#2-clone-the-repository)
-  - [3. Install Dependencies and Configure](#3-install-dependencies-and-configure)
-  - [4. Install and Configure SLURM for Task Management](#4-install-and-configure-slurm-for-task-management)
-  - [5. Configure the Server as a System Service](#5-configure-the-server-as-a-system-service)
-  - [6. NGINX Reverse Proxy Setup for Streamlit](#6-nginx-reverse-proxy-setup-for-streamlit)
 - [Running the Application](#running-the-application)
-  - [Accessing Locally](#accessing-locally)
-  - [Accessing on LAN](#accessing-on-lan)
-  - [Functionalities Overview](#functionalities-overview)
-  - [Instructions for Use](#instructions-for-use)
 - [Docking Work Flow](#docking-work-flow)
-  - [Input Parsing](#input-parsing)
-  - [Receptor Preparation](#receptor-preparation)
-  - [Binding Site Prediction](#binding-site-prediction)
-  - [Ligand Preparation](#ligand-preparation)
-  - [Docking Execution](#docking-execution)
 - [Docking Parameters explained](#docking-parameters-explained)
-  - [Tolerance parameters](#tolerance-parameters)
-  - [Auto Dock Vina parameters](#auto-dock-vina-parameters)
 - [Visualization and Results Generation](#visualization-and-results-generation)
-  - [Visualizations](#visualizations)
-  - [HTML and CSV Reports](#html-and-csv-reports)
 - [Output File Organization](#output-file-organization)
 - [Acknowledgments](#acknowledgments)
 
@@ -53,8 +34,10 @@ If you encounter any problems with the installation or operation of the docking 
 
 ## UPDATES
 
+- !!! I'm working on building docker image. It'll be ready to use without instalation. Stay tuned!
 - Some PDB codes in the PDB database do not correspond to actual .pdb files, because only mmCIF files are available. The program, in case it cannot download a .pdb file, tries to download a .cif file. After successfully downloading it, it converts it to .pdb and passes it on for further processing and docking.
 - Automatic selection of a chain with a receptor did not work due to the lack of uniformity in chain naming. Now, when PDB codes are given, the structures are retrieved, a list of chains is loaded, and the user has to select for each receptor the appropriate chain containing the receptor, or docking site, from a drop-down list. Alternatively, an input can be prepared in the form of a csv file that contains PDB codes and chain IDs. After loading the CSV file, a list of receptors with selected chains is shown, which can be modified, or accepted and passed on for further calculations.
+- Added an option in the QUEUE module where a user can cancel his own task. A user cannot cancel other users' tasks.
 
 ## Web Interface
 
@@ -180,66 +163,13 @@ sudo apt update && sudo apt upgrade -y
 Install the required dependencies:
 
 ```bash
-sudo apt install -y munge libmunge-dev libmunge2 build-essential slurm-wlm slurm-client
+sudo apt install -y build-essential slurm-wlm slurm-client
 ```
-
-Create an authentication key for Munge:
-
-```bash
-sudo /usr/sbin/create-munge-key
-```
-
-If it's not working you have to create munge-key manually. Log into root account:
-
-```bash
-su - root
-```
-
-Create munge key and add permissions:
-
-```bash
-sudo dd if=/dev/urandom bs=1 count=1024 > /etc/munge/munge.key
-sudo chown munge:munge /etc/munge/munge.key
-sudo chmod 400 /etc/munge/munge.key
-```
-
-Check if key was created:
-
-```bash
-ls -l /etc/munge/munge.key
-```
-
-You should see something like this:
-```bash
--r-------- 1 munge munge 1024 <date of creation> /etc/munge/munge.key
-```
-
-Set appropriate permissions:
-
-```bash
-sudo chown -R munge: /etc/munge /var/lib/munge /var/log/munge
-sudo chmod 700 /etc/munge /var/lib/munge /var/log/munge
-```
-
-Start and enable the Munge service:
-
-```bash
-sudo systemctl enable munge
-sudo systemctl start munge
-```
-
-Verify Munge is working correctly:
-
-```bash
-munge -n | unmunge
-```
-
-*Expected output: Success (0).*
 
 Add a dedicated user for SLURM:
 
 ```bash
-sudo useradd -r -m -d /var/lib/slurm -s /bin/false slurm
+sudo useradd -r -d /var/lib/slurm -s /bin/false slurm
 ```
 
 Create necessary directories:
@@ -267,7 +197,7 @@ Edit the SLURM configuration file:
 sudo nano /etc/slurm/slurm.conf
 ```
 
-Add the following minimal configuration, replacing `<YOUR_CLUSTER_NAME>` with your preferred cluster name and `<YOUR_HOSTNAME>` with the hostname obtained earlier:
+Add the following minimal configuration, replacing `<YOUR_CLUSTER_NAME>` with your preferred cluster name and `<YOUR_HOSTNAME>` with the hostname obtained earlier. In CPUs and RealMemory put your number of CPUs and RAM memory in your system, in this case it's 16 CPU cores and 64GB of RAM memory:
 
 ```conf
 # Basic Configuration
@@ -277,7 +207,7 @@ ControlMachine=<YOUR_HOSTNAME>
 # Ports and Authentication
 SlurmctldPort=6817
 SlurmdPort=6818
-AuthType=auth/munge
+AuthType=auth/none
 
 # Logging
 SlurmdLogFile=/var/log/slurm/slurmd.log
@@ -326,7 +256,6 @@ sudo systemctl status slurmd
 Ensure all services start automatically on boot:
 
 ```bash
-sudo systemctl enable munge
 sudo systemctl enable slurmctld
 sudo systemctl enable slurmd
 ```
