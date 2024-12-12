@@ -6,7 +6,7 @@
 - [UPDATES](#updates)
 - [Program Graphical User Interface](#web-interface)
 - [Technologies Used and Requirements](#technologies-used)
-- [Installation](#installation)
+- [Installation / DOCKER Container](#installation)
 - [Running the Application](#running-the-application)
 - [Docking Work Flow](#docking-work-flow)
 - [Docking Parameters explained](#docking-parameters-explained)
@@ -86,7 +86,43 @@ The interface is built on the Sreamlit framework with a small Flask feature funt
 
 # Installation
 
-The installation process is divided into several main stages. The program is configured to operate under a specific user account and name. If you wish to modify this, locate all instances of `docking_machine` in the `dock_GUI.py` file and replace them with your desired username. The docking server will be set up on this account.
+There are two ways to set up the program for use. The easier and faster option is to use the Docker container I have prepared; you simply need to mount and run it. Alternatively, you can build the container yourself—the necessary files, including the Dockerfile, are available in the `dock_container` folder.
+
+The second method involves a local installation on Debian/Ubuntu. This approach is significantly more complex and time-consuming and requires some experience with Linux. However, I have aimed to describe the process thoroughly and as clearly as possible.
+
+## DOCKER Container from image
+
+The instructions are written for Windows 10/11. There may be minor differences for other operating systems. To get started, install Docker on your system (for Windows, this is Docker Desktop). On Windows, install and use it with an account that has administrator privileges, as otherwise, you may encounter issues with directory access permissions. While there are workarounds, it is easier to use an account with administrator rights.
+
+Launch the Docker application. Open the system console terminal (Win + R, type `cmd`) and enter the following command to download the Docker image:
+
+```
+docker image pull prospero88/autodock:latest
+```
+
+This command will download the Docker image, which is quite large—approximately 10 GB in size. To run it, navigate to the directory where you cloned the GitHub repository and locate the `docker-compose.yml` file, or simply download it manually from GitHub using your browser.
+
+Open the `docker-compose.yml` file with a text editor and modify the directory mount point where the results will be saved. You need to create such a directory on your computer. The line to modify is:
+
+```
+- C:\Users\aleniak\autodock\dock\results:/root/dock/results
+```
+
+Replace `C:\Users\aleniak\autodock\dock\results` with the path to the directory you created on your computer where the results will be stored locally. Save and close the file.
+
+The final step is to start the container. In the `cmd` console, navigate to the directory containing the `docker-compose.yml` file using the `cd` command. Then enter the following command:
+
+```
+docker-compose up -d
+```
+
+And that's it. The container is now running and configured. You can open your web browser and go to [http://localhost:8501/](http://localhost:8501/) to connect to the docking program.
+
+This final command will always start the container if you restart your system.
+
+## Local Linux Installation
+
+The installation process is divided into several main stages. The program is configured to operate under a specific user account and name. If you wish to modify this, locate the global instances of variable `RESULTS_DIR` in the `dock_GUI.py` file and replace them with your desired username. The docking server will be set up on this account.
 
 ### 1. Create a User Account for Docking
 
