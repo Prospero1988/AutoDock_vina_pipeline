@@ -32,14 +32,14 @@ If you encounter any problems with the installation or operation of the docking 
 
 ## UPDATES
 
-- !!! I'm working on building docker image. It'll be ready to use without instalation. Stay tuned!
+- Added function to cancel jobs from Queue.
 - Some PDB codes in the PDB database do not correspond to actual .pdb files, because only mmCIF files are available. The program, in case it cannot download a .pdb file, tries to download a .cif file. After successfully downloading it, it converts it to .pdb and passes it on for further processing and docking.
 - Automatic selection of a chain with a receptor did not work due to the lack of uniformity in chain naming. Now, when PDB codes are given, the structures are retrieved, a list of chains is loaded, and the user has to select for each receptor the appropriate chain containing the receptor, or docking site, from a drop-down list. Alternatively, an input can be prepared in the form of a csv file that contains PDB codes and chain IDs. After loading the CSV file, a list of receptors with selected chains is shown, which can be modified, or accepted and passed on for further calculations.
 - Added an option in the QUEUE module where a user can cancel his own task. A user cannot cancel other users' tasks.
 
 ## Web Interface
 
-The interface is built on the Sreamlit framework with a small Flask feature funtcion to grab IP for HTML interactive results internal server. After installation and configuration (or mounting docker image into container), the whole thing functions perfectly from a web browser.
+The interface is built on the Streamlit framework. After installation and configuration (or mounting docker image into container), the whole thing functions perfectly from a web browser.
 
 </br>
 <div align="center">
