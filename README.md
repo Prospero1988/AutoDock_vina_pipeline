@@ -9,29 +9,10 @@
 - [Results Screenshots](#results-screenshots)
 - [Technologies Used and Requirements](#technologies-used)
 - [Installation](#installation)
-  - [1. Create a User Account for Docking](#1-create-a-user-account-for-docking)
-  - [2. Clone the Repository](#2-clone-the-repository)
-  - [3. Install Dependencies and Configure](#3-install-dependencies-and-configure)
-  - [4. Install and Configure SLURM for Task Management](#4-install-and-configure-slurm-for-task-management)
-  - [5. Configure the Server as a System Service](#5-configure-the-server-as-a-system-service)
-  - [6. NGINX Reverse Proxy Setup for Streamlit](#6-nginx-reverse-proxy-setup-for-streamlit)
 - [Running the Application](#running-the-application)
-  - [Accessing Locally](#accessing-locally)
-  - [Accessing on LAN](#accessing-on-lan)
-  - [Functionalities Overview](#functionalities-overview)
-  - [Instructions for Use](#instructions-for-use)
 - [Docking Work Flow](#docking-work-flow)
-  - [Input Parsing](#input-parsing)
-  - [Receptor Preparation](#receptor-preparation)
-  - [Binding Site Prediction](#binding-site-prediction)
-  - [Ligand Preparation](#ligand-preparation)
-  - [Docking Execution](#docking-execution)
 - [Docking Parameters explained](#docking-parameters-explained)
-  - [Tolerance parameters](#tolerance-parameters)
-  - [Auto Dock Vina parameters](#auto-dock-vina-parameters)
 - [Visualization and Results Generation](#visualization-and-results-generation)
-  - [Visualizations](#visualizations)
-  - [HTML and CSV Reports](#html-and-csv-reports)
 - [Output File Organization](#output-file-organization)
 - [Acknowledgments](#acknowledgments)
 
@@ -188,7 +169,7 @@ sudo apt install -y build-essential slurm-wlm slurm-client
 Add a dedicated user for SLURM:
 
 ```bash
-sudo useradd -r -m -d /var/lib/slurm -s /bin/false slurm
+sudo useradd -r -d /var/lib/slurm -s /bin/false slurm
 ```
 
 Create necessary directories:
