@@ -305,6 +305,79 @@ def docking_module():
     """
     st.title("DOCKING Module")
 
+    # Initialisation of session_state for parameters
+    if 'parameters' not in st.session_state:
+        st.session_state.parameters = {
+            'pckt': {
+                'default': '1',
+                'value': '1',
+                'description': 'Pocket number (default: 1).'
+            },
+            'exhaust': {
+                'default': '16',
+                'value': '16',
+                'description': 'Exhaustiveness of the global search (roughly proportional to time) (default: 16). '
+                            'In the current implementation, the docking calculation consists of a number of independent runs, '
+                            'starting from random conformations. Each of these runs consists of a number of sequential steps. '
+                            'Each step involves a random perturbation of the conformation followed by a local optimization '
+                            '(using the Broyden-Fletcher-Goldfarb-Shanno algorithm) and a selection in which the step is either '
+                            'accepted or not. Each local optimization involves many evaluations of the scoring function as well as '
+                            'its derivatives in the position-orientation-torsions coordinates. The number of evaluations in a local '
+                            'optimization is guided by convergence and other criteria. The number of steps in a run is determined '
+                            'heuristically, depending on the size and flexibility of the ligand and the flexible side chains. '
+                            'However, the number of runs is set by the exhaustiveness parameter. Since the individual runs are '
+                            'executed in parallel, where appropriate, exhaustiveness also limits the parallelism. Unlike in AutoDock 4, '
+                            'in AutoDock Vina, each run can produce several results: promising intermediate results are remembered. '
+                            'These are merged, refined, clustered and sorted automatically to produce the final result.'
+            },
+            'energy_range': {
+                'default': '4',
+                'value': '4',
+                'description': 'Maximum energy difference between the best binding mode and the worst one displayed (kcal/mol) (default: 4).'
+            },
+            'num_modes': {
+                'default': '20',
+                'value': '20',
+                'description': 'Maximum number of binding modes to generate (default: 20).'
+            },
+            'seed': {
+                'default': '1988',
+                'value': '1988',
+                'description': 'Seed to the random number generator. A fixed value ensures repeatability of calculations. '
+                            'If the docking results do not satisfy you, try changing the value of the seed. (default: 1988).'
+            },
+            'tol_x': {
+                'default': '0',
+                'value': '0',
+                'description': 'Expansion of Gridbox in Angstroms in X dimension. Negative values will reduce the size of the gridbox.'
+            },
+            'tol_y': {
+                'default': '0',
+                'value': '0',
+                'description': 'Expansion of Gridbox in Angstroms in Y dimension. Negative values will reduce the size of the gridbox.'
+            },
+            'tol_z': {
+                'default': '0',
+                'value': '0',
+                'description': 'Expansion of Gridbox in Angstroms in Z dimension. Negative values will reduce the size of the gridbox.'
+            },
+            'offset_x': {
+                'default': '0',
+                'value': '0',
+                'description': 'Shift of Gridbox in Angstroms in dimension X (default: 0). Positive and negative values are allowed.'
+            },
+            'offset_y': {
+                'default': '0',
+                'value': '0',
+                'description': 'Shift of Gridbox in Angstroms in dimension Y (default: 0). Positive and negative values are allowed.'
+            },
+            'offset_z': {
+                'default': '0',
+                'value': '0',
+                'description': 'Shift of Gridbox in Angstroms in dimension Z (default: 0). Positive and negative values are allowed.'
+            }
+        }
+
     # Return to main menu
     st.markdown("<hr>", unsafe_allow_html=True)
     if st.button("Return to MENU", key='return_to_menu_docking'):
@@ -566,7 +639,7 @@ def docking_module():
     # STEP 3: Upload Ligand
     if st.session_state.project_valid and st.session_state.progress == 3:
         st.header("3. Upload Ligand Files")
-        ligand_file = st.file_uploader("Choose a ligand file (.mol2 or .SDF)", type=['mol2', 'SDF', 'sdf'], key='ligand_file')
+        ligand_file = st.file_uploader("Choose a ligand file (.mol2 or .SDF)", type=['mol2', 'sdf'], key='ligand_file')
 
         ligands_folder = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'ligands')
         os.makedirs(ligands_folder, exist_ok=True)
@@ -593,48 +666,108 @@ def docking_module():
         st.header("4. Docking Parameters")
         st.write("Adjust docking parameters if needed, or proceed with defaults.")
 
-        parameters = {
-            'pckt': {'value': '1', 'default': '1', 'description': 'Pocket number (default: 1).'},
-            'exhaust': {'value': '16', 'default': '16', 'description': 'Exhaustiveness (default: 16).'},
-            'energy_range': {'value': '4', 'default': '4', 'description': 'Energy range (default: 4).'},
-            'tol_x': {'value': '', 'default': '', 'description': 'Tolerance in X dimension.'},
-            'tol_y': {'value': '', 'default': '', 'description': 'Tolerance in Y dimension.'},
-            'tol_z': {'value': '', 'default': '', 'description': 'Tolerance in Z dimension.'},
-            'offset_x': {'value': '0', 'default': '0', 'description': 'Offset in X (default: 0).'},
-            'offset_y': {'value': '0', 'default': '0', 'description': 'Offset in Y (default: 0).'},
-            'offset_z': {'value': '0', 'default': '0', 'description': 'Offset in Z (default: 0).'},
-        }
+        parameters = st.session_state.parameters
 
-        if 'parameters_set' not in st.session_state:
-            st.session_state.parameters_set = {}
+        # Load existing parameters if available
+        parameters_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'docking_parameters.csv')
+        if os.path.exists(parameters_csv_path):
+            try:
+                df_params = pd.read_csv(parameters_csv_path)
+                for _, row in df_params.iterrows():
+                    param = row['parameter']
+                    value = row['value']
+                    if param in parameters:
+                        st.session_state.parameters[param]['value'] = str(value)
+            except Exception as e:
+                st.error(f"Error reading existing docking_parameters.csv: {e}")
 
-        for param in parameters:
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                checkbox = st.checkbox(param, value=(param in st.session_state.parameters_set), help=parameters[param]['description'], key=f"{param}_checkbox")
-            with col2:
-                if checkbox:
-                    value = st.text_input(
-                        f"Value for {param}",
-                        value=st.session_state.parameters_set.get(param, parameters[param]['default']),
-                        key=param,
-                        help=parameters[param]['description']
-                    )
-                    parameters[param]['value'] = value
-                    st.session_state.parameters_set[param] = value
+        # Import Parameters Section
+        st.subheader("Import Parameters from CSV")
+        uploaded_parameters_file = st.file_uploader("Upload docking_parameters.csv", type=['csv'], key='upload_parameters')
+
+        if uploaded_parameters_file:
+            try:
+                df_uploaded = pd.read_csv(uploaded_parameters_file)
+                if 'parameter' in df_uploaded.columns and 'value' in df_uploaded.columns:
+                    for _, row in df_uploaded.iterrows():
+                        param = row['parameter']
+                        value = row['value']
+                        if param in parameters:
+                            st.session_state.parameters[param]['value'] = str(value)
+                    st.success("Parameters imported successfully.")
                 else:
-                    parameters[param]['value'] = ''
-                    if param in st.session_state.parameters_set:
-                        del st.session_state.parameters_set[param]
+                    st.error("CSV file must contain 'parameter' and 'value' columns.")
+            except Exception as e:
+                st.error(f"Error reading uploaded parameters file: {e}")
 
+        # Parameters Section with Form
+        st.subheader("Parameters")
+
+        with st.form("parameters_form"):
+            for param, details in st.session_state.parameters.items():
+                st.session_state.parameters[param]['value'] = st.text_input(
+                    f"{param}",
+                    value=st.session_state.parameters[param]['value'],
+                    key=f"param_{param}",
+                    help=details['description']
+                )
+            
+            # Parameter confirmation button
+            confirm = st.form_submit_button("Confirm Parameters")
+
+            if confirm:
+                # We directly confirm the parameters in session_state
+                st.success("Parameters confirmed and saved successfully.")
+
+        # Export Parameters Section
+        st.subheader("Export Parameters to CSV")
+        try:
+            df_export = pd.DataFrame([
+                {'parameter': param, 'value': details['value']}
+                for param, details in st.session_state.parameters.items()
+            ])
+            csv_export = df_export.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="EXPORT to file",
+                data=csv_export,
+                file_name='docking_parameters.csv',
+                mime='text/csv'
+            )
+        except Exception as e:
+            st.error(f"Error exporting parameters: {e}")
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        # Proceed to Summary Button
         if st.button("Proceed to Summary"):
-            st.session_state.progress = 5
-            st.session_state.parameters = parameters
-            st.rerun()
+            # Sprawdzenie, czy wszystkie parametry mają wartości
+            all_params_set = all(details['value'] for details in st.session_state.parameters.values())
+            if not all_params_set:
+                st.error("Please confirm your parameters before proceeding.")
+            else:
+                try:
+                    # Save parameters to CSV
+                    df_save = pd.DataFrame([
+                        {'parameter': param, 'value': details['value']}
+                        for param, details in st.session_state.parameters.items()
+                    ])
+                    df_save.to_csv(parameters_csv_path, index=False)
+                    st.success(f"Parameters saved in {os.path.basename(parameters_csv_path)}.")
+                except Exception as e:
+                    st.error(f"Error saving parameters to CSV: {e}")
+
+                # Setting progress to 5 (Summary)
+                st.session_state.progress = 5
+                st.rerun()
 
     # STEP 5: Summary
     if st.session_state.project_valid and st.session_state.progress == 5:
         st.header("5. Project Summary")
+        
+        # Debugging: Displaying the contents of the parameters
+        #st.write("### Debugging Parameters:")
+        #st.write(st.session_state.parameters)
+        
         pdb_codes = []
         receptors_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'receptors', 'receptors.csv')
         if os.path.exists(receptors_csv_path):
@@ -646,12 +779,10 @@ def docking_module():
         st.write(f"**PDB Codes:** {', '.join(pdb_codes) if pdb_codes else 'None'}")
         st.write(f"**Ligand File:** {st.session_state.ligand_file_name if 'ligand_file_name' in st.session_state else 'None'}")
         st.write("**Docking Parameters:**")
-        for param in parameters:
-            if parameters[param]['value']:
-                st.write(f"- {param}: {parameters[param]['value']}")
-            else:
-                st.write(f"- {param}: (Not set)")
-
+        for param, details in st.session_state.parameters.items():
+            value = details.get('value', 'Not set')
+            st.write(f"- {param}: {value}")
+        
         if st.button("Start Docking"):
             st.session_state.progress = 6
             st.rerun()
@@ -685,9 +816,10 @@ conda activate auto_dock
 
 python3 init_docking.py --pdb_ids receptors.csv --ligands '{st.session_state.ligand_file_name}'"""
 
-                for param in parameters:
-                    if parameters[param]['value']:
-                        script_content += f" --{param} {parameters[param]['value']}"
+                for param, details in parameters.items():
+                    value = details['value']
+                    if value:
+                        script_content += f" --{param} {value}"
 
                 script_content += f"\necho 'Job submitted by {st.session_state.username}'\n"
 

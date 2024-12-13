@@ -104,8 +104,11 @@ def main():
     parser.add_argument('--pckt', type=int, default=1, help='Pocket number to use from P2Rank predictions (default: 1).')
     parser.add_argument('--exhaust', type=int, default=16, help='Specifies how thorough the search should be for the best binding poses. Higher values increase precision but require more computation time (default: 16).')
     parser.add_argument('--energy_range', type=int, default=3, help='Determines the range of energy scores (in kcal/mol) for poses to be considered (default: 3).')
+    parser.add_argument('--num_modes', type=int, default=20, help='The parameter determines the number of maximum generated conformers (default: 20).')
+    parser.add_argument('--seed', type=int, default=1988, help='Seed to the random number generator. A fixed value ensures repeatability of calculations. If the docking results do not satisfy you, try changing the value of the seed. (default: 1988).')
 
     args = parser.parse_args()
+    seed = args.seed
    
     script_dir = os.path.dirname(os.path.abspath(__file__))
     pdb_ids_file = args.pdb_ids
@@ -319,12 +322,14 @@ def main():
                     # Prepare ligand
                     prepare_ligand(ligand_pdb, ligand_pdbqt)
 
+
+                    num_modes = args.num_modes
                     # Run docking
                     vina_output, affinities = run_vina(
                         receptor_pdbqt, ligand_pdbqt, output_pdbqt,
                         center_x, center_y, center_z,
                         Size_x, Size_y, Size_z,
-                        exhaustiveness, energy_range
+                        exhaustiveness, energy_range, num_modes, seed
                     )
 
                     # Copy PDBQT file after docking to folder 03_ligands_PDBQT
@@ -539,10 +544,11 @@ def fix_pdb(input_pdb, output_pdb, chain_ID, ph=7.4):
 
         # Finding the missing residuals
         fixer.findMissingResidues()
+        fixer.missingResidues = {}
 
         # Finding the missing atoms and adding them
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
+        # fixer.findMissingAtoms()
+        # fixer.addMissingAtoms()
 
         # Adding missing protons
         fixer.addMissingHydrogens(ph)
@@ -696,7 +702,7 @@ def get_docking_box(output_dir, receptor_pdb, tol_x, tol_y, tol_z, pocket_number
 def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
              center_x, center_y, center_z,
              size_x, size_y, size_z,
-             exhaustiveness, energy_range):
+             exhaustiveness, energy_range, num_modes, seed):
     try:
         vina_command = [
             VINA_PATH,
@@ -711,7 +717,8 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt,
             '--size_y', str(size_y),
             '--size_z', str(size_z),
             '--exhaustiveness', str(exhaustiveness),
-            '--seed', '1988',  # Optionally, to have reproducible results
+            '--num_modes', str(num_modes),
+            '--seed', str(seed),  # Optionally, to have reproducible results
         ]
 
         # Call Vina without capturing the output
@@ -796,7 +803,7 @@ def add_axes(center=(0, 0, 0), length=10.0, radius=0.1, offset=(15, 15, 15)):
 
 
 @logger_decorator
-def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, receptor_name, ligand_name, center, size, offset=(15, 15, 15)):
+def generate_visualizations(receptor_pdbqt, output_pdbqt, output_folder, receptor_name, ligand_name, center, size, offset=(0, 0, 0)):
     try:
         # Load structures into PyMOL from PDBQT files (containing payloads)
         cmd.load(receptor_pdbqt, 'receptor')
