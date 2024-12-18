@@ -293,19 +293,18 @@ def main():
         elif st.session_state.module == 'PyMOL Installation GUIDE':
             install_guide_module()
 
-
 def docking_module():
     """
     Handle the docking workflow steps:
     1. Project setup
-    2. PDB codes input and chain selection
+    2. PDB codes input and chain selection OR flexible docking files (rigid & flex)
     3. Ligand file upload
     4. Docking parameters configuration
     5. Summary and job submission
     """
     st.title("DOCKING Module")
 
-    # Initialisation of session_state for parameters
+    # Initialize parameters if not present
     if 'parameters' not in st.session_state:
         st.session_state.parameters = {
             'pckt': {
@@ -316,24 +315,12 @@ def docking_module():
             'exhaust': {
                 'default': '16',
                 'value': '16',
-                'description': 'Exhaustiveness of the global search (roughly proportional to time) (default: 16). '
-                            'In the current implementation, the docking calculation consists of a number of independent runs, '
-                            'starting from random conformations. Each of these runs consists of a number of sequential steps. '
-                            'Each step involves a random perturbation of the conformation followed by a local optimization '
-                            '(using the Broyden-Fletcher-Goldfarb-Shanno algorithm) and a selection in which the step is either '
-                            'accepted or not. Each local optimization involves many evaluations of the scoring function as well as '
-                            'its derivatives in the position-orientation-torsions coordinates. The number of evaluations in a local '
-                            'optimization is guided by convergence and other criteria. The number of steps in a run is determined '
-                            'heuristically, depending on the size and flexibility of the ligand and the flexible side chains. '
-                            'However, the number of runs is set by the exhaustiveness parameter. Since the individual runs are '
-                            'executed in parallel, where appropriate, exhaustiveness also limits the parallelism. Unlike in AutoDock 4, '
-                            'in AutoDock Vina, each run can produce several results: promising intermediate results are remembered. '
-                            'These are merged, refined, clustered and sorted automatically to produce the final result.'
+                'description': 'Exhaustiveness of the global search (default: 16).'
             },
             'energy_range': {
                 'default': '4',
                 'value': '4',
-                'description': 'Maximum energy difference between the best binding mode and the worst one displayed (kcal/mol) (default: 4).'
+                'description': 'Maximum energy difference between the best and worst binding mode displayed (default: 4).'
             },
             'num_modes': {
                 'default': '20',
@@ -343,38 +330,37 @@ def docking_module():
             'seed': {
                 'default': '1988',
                 'value': '1988',
-                'description': 'Seed to the random number generator. A fixed value ensures repeatability of calculations. '
-                            'If the docking results do not satisfy you, try changing the value of the seed. (default: 1988).'
+                'description': 'Seed for random number generator (default: 1988).'
             },
             'tol_x': {
                 'default': '0',
                 'value': '0',
-                'description': 'Expansion of Gridbox in Angstroms in X dimension. Negative values will reduce the size of the gridbox.'
+                'description': 'Expansion of gridbox in X dimension (default: 0).'
             },
             'tol_y': {
                 'default': '0',
                 'value': '0',
-                'description': 'Expansion of Gridbox in Angstroms in Y dimension. Negative values will reduce the size of the gridbox.'
+                'description': 'Expansion of gridbox in Y dimension (default: 0).'
             },
             'tol_z': {
                 'default': '0',
                 'value': '0',
-                'description': 'Expansion of Gridbox in Angstroms in Z dimension. Negative values will reduce the size of the gridbox.'
+                'description': 'Expansion of gridbox in Z dimension (default: 0).'
             },
             'offset_x': {
                 'default': '0',
                 'value': '0',
-                'description': 'Shift of Gridbox in Angstroms in dimension X (default: 0). Positive and negative values are allowed.'
+                'description': 'Shift of gridbox center in X dimension (default: 0).'
             },
             'offset_y': {
                 'default': '0',
                 'value': '0',
-                'description': 'Shift of Gridbox in Angstroms in dimension Y (default: 0). Positive and negative values are allowed.'
+                'description': 'Shift of gridbox center in Y dimension (default: 0).'
             },
             'offset_z': {
                 'default': '0',
                 'value': '0',
-                'description': 'Shift of Gridbox in Angstroms in dimension Z (default: 0). Positive and negative values are allowed.'
+                'description': 'Shift of gridbox center in Z dimension (default: 0).'
             }
         }
 
@@ -386,7 +372,7 @@ def docking_module():
 
     progress = st.session_state.progress
 
-    # Initialize variables required for the docking steps
+    # Initialize some state variables
     if 'project_name' not in st.session_state:
         st.session_state.project_name = ''
     if 'project_valid' not in st.session_state:
@@ -414,7 +400,7 @@ def docking_module():
                     st.session_state.prefixed_project_name = prefixed_project_name
 
                     if not os.path.exists(project_path):
-                        # Create a new project from the template
+                        # Create new project from template
                         try:
                             shutil.copytree(template_path, project_path)
                             st.success(f"Project folder '{prefixed_project_name}' has been created.")
@@ -422,7 +408,6 @@ def docking_module():
                         except Exception as e:
                             st.error(f"Error copying template: {e}")
                     else:
-                        # Project with given name exists
                         st.warning(f"Project '{project_name}' already exists.")
                         st.session_state.project_exists = True
                         st.rerun()
@@ -456,9 +441,10 @@ def docking_module():
                 st.session_state.progress = 1
                 st.rerun()
 
-    # STEP 2: PDB Codes Input
+    # STEP 2: PDB Codes or Flexible docking files
     if st.session_state.project_valid and st.session_state.progress == 2:
-        st.header("2. Enter PDB Codes")
+               
+        st.header("2A. Enter PDB Codes")
         st.write("Enter PDB codes separated by commas or upload a CSV with PDB codes and chains.")
         pdb_input = st.text_area("PDB Codes", key='pdb_input')
         st.write("Or upload a CSV file with two columns: PDB code and chain ID (no headers).")
@@ -512,8 +498,9 @@ def docking_module():
             else:
                 st.error("Please enter PDB codes or upload a CSV file.")
 
-        # Download and parse PDB files to identify chains
+        # Download PDB/mmCIF files if PDB codes provided
         if st.session_state.pdb_codes and not st.session_state.chains_available:
+            
             st.info("Downloading and parsing PDB/mmCIF files...")
             parser = PDBParser(QUIET=True)
             failed_downloads = []
@@ -523,7 +510,7 @@ def docking_module():
             for idx, pdb_code in enumerate(st.session_state.pdb_codes, start=1):
                 pdb_file_path = os.path.join(pdbs_dir, f"{pdb_code}.pdb")
                 if not os.path.exists(pdb_file_path):
-                    # Attempt downloading PDB first, then mmCIF if PDB fails
+                    # Attempt PDB download first, then mmCIF
                     try:
                         url_pdb = f"https://files.rcsb.org/download/{pdb_code}.pdb"
                         response_pdb = requests.get(url_pdb)
@@ -534,34 +521,32 @@ def docking_module():
                             chains = sorted([chain.id for chain in structure.get_chains()])
                             st.session_state.chains_available[pdb_code] = chains
                         else:
-                            # Try mmCIF format
+                            # Try mmCIF
                             url_cif = f"https://files.rcsb.org/download/{pdb_code}.cif"
                             response_cif = requests.get(url_cif)
                             if response_cif.status_code == 200:
                                 cif_file_path = os.path.join(pdbs_dir, f"{pdb_code}.cif")
                                 with open(cif_file_path, 'w') as f:
                                     f.write(response_cif.text)
-
-                                # Convert mmCIF to PDB using OBABEL
-                                converted_pdb_path = pdb_file_path
+                                # Convert mmCIF to PDB
+                                cmd = [
+                                    OBABEL_PATH,
+                                    "-i", "cif",
+                                    cif_file_path,
+                                    "-o", "pdb",
+                                    "-O", pdb_file_path
+                                ]
                                 try:
-                                    subprocess.run([
-                                        OBABEL_PATH,
-                                        "-i", "cif",
-                                        cif_file_path,
-                                        "-o", "pdb",
-                                        "-O", converted_pdb_path
-                                    ], check=True)
-
-                                    if os.path.exists(converted_pdb_path):
-                                        structure = parser.get_structure(pdb_code, converted_pdb_path)
+                                    subprocess.run(cmd, check=True)
+                                    if os.path.exists(pdb_file_path):
+                                        structure = parser.get_structure(pdb_code, pdb_file_path)
                                         chains = sorted([chain.id for chain in structure.get_chains()])
                                         st.session_state.chains_available[pdb_code] = chains
                                         os.remove(cif_file_path)
                                     else:
                                         raise FileNotFoundError(f"Conversion failed for {pdb_code}.")
                                 except subprocess.CalledProcessError as e:
-                                    st.error(f"Error converting mmCIF to PDB for {pdb_code}: {e}")
+                                    st.error(f"Error converting mmCIF for {pdb_code}: {e}")
                                     failed_downloads.append(pdb_code)
                             else:
                                 failed_downloads.append(pdb_code)
@@ -569,13 +554,13 @@ def docking_module():
                         st.error(f"Error processing PDB code {pdb_code}: {e}")
                         failed_downloads.append(pdb_code)
                 else:
-                    # If PDB already exists locally
+                    # If PDB already exists
                     try:
                         structure = parser.get_structure(pdb_code, pdb_file_path)
                         chains = sorted([chain.id for chain in structure.get_chains()])
                         st.session_state.chains_available[pdb_code] = chains
                     except Exception as e:
-                        st.error(f"Error parsing existing PDB file for {pdb_code}: {e}")
+                        st.error(f"Error parsing PDB file for {pdb_code}: {e}")
                         failed_downloads.append(pdb_code)
 
                 st.session_state.download_progress = idx / st.session_state.total_pdbs
@@ -626,6 +611,7 @@ def docking_module():
                     st.error("No chains selected.")
 
             if st.session_state.receptors_confirmed:
+                st.warning("If you want to do flexible docking don't click Proceed button, but provide files in 2B module and use SUBMIT button at the end of 2B section. This proceed button will move to the normal rigid docking with provided PDB code.")
                 if st.button("Proceed to Next Step"):
                     try:
                         if os.path.exists(pdbs_dir):
@@ -635,8 +621,43 @@ def docking_module():
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error removing temporary directory: {e}")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.subheader("### OPTIONAL FLEXIBLE DOCKING ###")
 
-    # STEP 3: Upload Ligand
+        st.header("2B. Provide files for flexible docking")
+        st.write("Generate appropriate files (rigid.pdbqt and flex.pdbqt) from a cleaned receptor structure using MGLTools/AutoDockTools. You need to provide the PDB code in step 2A before proceeding.")
+        st.markdown("")
+        
+        # Wgrywanie plików dla elastycznego dokowania
+        rigid_file = st.file_uploader("Rigid receptor structure (.pdbqt)", type=['pdbqt'], key='rigid_file')
+        flex_file = st.file_uploader("Flexible residues (.pdbqt)", type=['pdbqt'], key='flex_file')
+
+        if st.button("Submit Flexible Docking Files"):
+            if rigid_file and flex_file:
+                # Zapisanie plików na dysk
+                try:
+                    rigid_path = os.path.join(project_receptors_path, 'rigid.pdbqt')
+                    flex_path = os.path.join(project_receptors_path, 'flex.pdbqt')
+
+                    with open(rigid_path, 'wb') as f:
+                        f.write(rigid_file.getbuffer())
+                    with open(flex_path, 'wb') as f:
+                        f.write(flex_file.getbuffer())
+
+                    st.success("Rigid and flex files uploaded successfully.")
+
+                    # Przekazanie ścieżek do zmiennych sesji
+                    st.session_state.rigid = rigid_path
+                    st.session_state.flex = flex_path
+                    st.session_state.progress = 3
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error saving files: {e}")
+            else:
+                st.error("Please upload both rigid and flexible pdbqt files.")
+
+
+    # STEP 3: Ligand Upload
     if st.session_state.project_valid and st.session_state.progress == 3:
         st.header("3. Upload Ligand Files")
         ligand_file = st.file_uploader("Choose a ligand file (.mol2 or .SDF)", type=['mol2', 'sdf'], key='ligand_file')
@@ -667,9 +688,9 @@ def docking_module():
         st.write("Adjust docking parameters if needed, or proceed with defaults.")
 
         parameters = st.session_state.parameters
+        parameters_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'docking_parameters.csv')
 
         # Load existing parameters if available
-        parameters_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'docking_parameters.csv')
         if os.path.exists(parameters_csv_path):
             try:
                 df_params = pd.read_csv(parameters_csv_path)
@@ -681,10 +702,9 @@ def docking_module():
             except Exception as e:
                 st.error(f"Error reading existing docking_parameters.csv: {e}")
 
-        # Import Parameters Section
+        # Import parameters
         st.subheader("Import Parameters from CSV")
         uploaded_parameters_file = st.file_uploader("Upload docking_parameters.csv", type=['csv'], key='upload_parameters')
-
         if uploaded_parameters_file:
             try:
                 df_uploaded = pd.read_csv(uploaded_parameters_file)
@@ -696,13 +716,12 @@ def docking_module():
                             st.session_state.parameters[param]['value'] = str(value)
                     st.success("Parameters imported successfully.")
                 else:
-                    st.error("CSV file must contain 'parameter' and 'value' columns.")
+                    st.error("CSV must have 'parameter' and 'value' columns.")
             except Exception as e:
                 st.error(f"Error reading uploaded parameters file: {e}")
 
-        # Parameters Section with Form
+        # Parameters form
         st.subheader("Parameters")
-
         with st.form("parameters_form"):
             for param, details in st.session_state.parameters.items():
                 st.session_state.parameters[param]['value'] = st.text_input(
@@ -711,15 +730,11 @@ def docking_module():
                     key=f"param_{param}",
                     help=details['description']
                 )
-            
-            # Parameter confirmation button
             confirm = st.form_submit_button("Confirm Parameters")
-
             if confirm:
-                # We directly confirm the parameters in session_state
                 st.success("Parameters confirmed and saved successfully.")
 
-        # Export Parameters Section
+        # Export parameters
         st.subheader("Export Parameters to CSV")
         try:
             df_export = pd.DataFrame([
@@ -738,15 +753,12 @@ def docking_module():
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # Proceed to Summary Button
         if st.button("Proceed to Summary"):
-            # Sprawdzenie, czy wszystkie parametry mają wartości
             all_params_set = all(details['value'] for details in st.session_state.parameters.values())
             if not all_params_set:
                 st.error("Please confirm your parameters before proceeding.")
             else:
                 try:
-                    # Save parameters to CSV
                     df_save = pd.DataFrame([
                         {'parameter': param, 'value': details['value']}
                         for param, details in st.session_state.parameters.items()
@@ -756,33 +768,44 @@ def docking_module():
                 except Exception as e:
                     st.error(f"Error saving parameters to CSV: {e}")
 
-                # Setting progress to 5 (Summary)
                 st.session_state.progress = 5
                 st.rerun()
 
     # STEP 5: Summary
     if st.session_state.project_valid and st.session_state.progress == 5:
         st.header("5. Project Summary")
-        
-        # Debugging: Displaying the contents of the parameters
-        #st.write("### Debugging Parameters:")
-        #st.write(st.session_state.parameters)
-        
+
+        parameters = st.session_state.parameters
+        # Check if we are in flexible mode or standard mode
+        # Flexible mode if rigid and flex are set
+        rigid_arg = None
+        flex_arg = None
+        if 'rigid' in st.session_state and st.session_state.rigid not in (None, 'None'):
+            rigid_arg = st.session_state.rigid
+        if 'flex' in st.session_state and st.session_state.flex not in (None, 'None'):
+            flex_arg = st.session_state.flex
+
+        st.write(f"**Project Name:** {st.session_state.project_name}")
         pdb_codes = []
         receptors_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'receptors', 'receptors.csv')
         if os.path.exists(receptors_csv_path):
             with open(receptors_csv_path, 'r') as f:
                 pdb_codes = [line.strip() for line in f if line.strip()]
-
-        parameters = st.session_state.parameters
-        st.write(f"**Project Name:** {st.session_state.project_name}")
         st.write(f"**PDB Codes:** {', '.join(pdb_codes) if pdb_codes else 'None'}")
+        
+        if rigid_arg and flex_arg:
+            # Flexible mode: do not show PDB codes
+            st.write("**Docking Mode:** Flexible docking")
+            st.write(f"**Rigid File:** {os.path.basename(rigid_arg)}")
+            st.write(f"**Flex File:** {os.path.basename(flex_arg)}")
+
         st.write(f"**Ligand File:** {st.session_state.ligand_file_name if 'ligand_file_name' in st.session_state else 'None'}")
+
         st.write("**Docking Parameters:**")
         for param, details in st.session_state.parameters.items():
             value = details.get('value', 'Not set')
             st.write(f"- {param}: {value}")
-        
+
         if st.button("Start Docking"):
             st.session_state.progress = 6
             st.rerun()
@@ -793,17 +816,18 @@ def docking_module():
         if 'ligand_file_name' not in st.session_state or not st.session_state.ligand_file_name:
             st.error("No ligand file uploaded.")
         else:
-            pdb_codes = []
-            receptors_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'receptors', 'receptors.csv')
-            if os.path.exists(receptors_csv_path):
-                with open(receptors_csv_path, 'r') as f:
-                    pdb_codes = [line.strip() for line in f if line.strip()]
+            # Determine mode
+            rigid_arg = None
+            flex_arg = None
+            if 'rigid' in st.session_state:
+                if st.session_state.rigid not in (None, 'None'):
+                    rigid_arg = st.session_state.rigid
+            if 'flex' in st.session_state:
+                if st.session_state.flex not in (None, 'None'):
+                    flex_arg = st.session_state.flex
 
-            if not pdb_codes:
-                st.error("No PDB codes provided.")
-            else:
-                parameters = st.session_state.parameters
-                script_content = f"""#!/bin/bash
+            parameters = st.session_state.parameters
+            script_content = f"""#!/bin/bash
 #SBATCH --job-name={st.session_state.username}_{st.session_state.project_name}
 #SBATCH --output=docking_output.log
 #SBATCH --error=docking_error.log
@@ -813,26 +837,33 @@ def docking_module():
 
 source ~/miniconda/etc/profile.d/conda.sh
 conda activate auto_dock
+"""
 
-python3 init_docking.py --pdb_ids receptors.csv --ligands '{st.session_state.ligand_file_name}'"""
+            # Build the command
+            cmd_line = "python3 init_docking.py --pdb_ids receptors.csv --ligands '{}'".format(st.session_state.ligand_file_name)
+            if rigid_arg and flex_arg:
+                # Flexible mode: use --rigid and --flex
+                cmd_line += f" --rigid {rigid_arg} --flex {flex_arg}"
+                # No PDB IDs in flexible mode
 
-                for param, details in parameters.items():
-                    value = details['value']
-                    if value:
-                        script_content += f" --{param} {value}"
+            for param, details in parameters.items():
+                value = details['value']
+                if value:
+                    cmd_line += f" --{param} {value}"
 
-                script_content += f"\necho 'Job submitted by {st.session_state.username}'\n"
+            script_content += cmd_line
+            script_content += f"\necho 'Job submitted by {st.session_state.username}'\n"
 
-                script_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'start_docking.sh')
-                with open(script_path, 'w') as f:
-                    f.write(script_content)
-                os.chmod(script_path, 0o755)
-                try:
-                    subprocess.run(['sbatch', script_path], cwd=os.path.dirname(script_path))
-                    st.success("Docking job has been submitted to the queue.")
-                    st.session_state.progress = 1
-                except Exception as e:
-                    st.error(f"Error submitting job: {e}")
+            script_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'start_docking.sh')
+            with open(script_path, 'w') as f:
+                f.write(script_content)
+            os.chmod(script_path, 0o755)
+            try:
+                subprocess.run(['sbatch', script_path], cwd=os.path.dirname(script_path))
+                st.success("Docking job has been submitted to the queue.")
+                st.session_state.progress = 1
+            except Exception as e:
+                st.error(f"Error submitting job: {e}")
 
 
 def queue_module():
