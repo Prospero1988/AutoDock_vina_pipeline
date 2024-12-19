@@ -29,7 +29,7 @@ else:
 print("Installing Python libraries with Conda...")
 run_command(['conda', 'install', '-y', '-c', 'conda-forge',
              'biopython', 'biopandas', 'pubchempy', 'tqdm', 
-             'matplotlib', 'scipy', 'rdkit', 'pdbfixer', 'bcrypt', 'pandas', 'streamlit', 'flask'])
+             'matplotlib', 'scipy', 'rdkit', 'pdbfixer', 'bcrypt', 'pandas', 'streamlit'])
 
 # Ensure pip is installed in the current Conda environment
 print("Ensuring pip is installed in Conda environment...")

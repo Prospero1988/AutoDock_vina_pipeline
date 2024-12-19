@@ -22,8 +22,10 @@ st.set_page_config(page_title="Docking Program", layout="centered")
 OBABEL_PATH = "/usr/bin/obabel"
 HTTP_SERVER_PORT = 8001
 RESULTS_DIR = '/home/docking_machine/dock/results'
+PASSWORD_DIR = '/home/docking_machine/dock/results/passwords'
+DOCK_DIR = '/home/docking_machine/dock'
 os.makedirs(RESULTS_DIR, exist_ok=True)
-
+os.makedirs(PASSWORD_DIR, exist_ok=True)
 
 @st.cache_resource
 def start_shared_http_server():
@@ -83,8 +85,13 @@ def check_credentials(username, password):
     Returns:
         bool: True if credentials match, otherwise False.
     """
+    
+    if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
+        print("No password file found. Please add a user first.")
+        return False
+    
     try:
-        credentials = pd.read_csv(f'{RESULTS_DIR}/passwords.pw')
+        credentials = pd.read_csv(f'{PASSWORD_DIR}/passwords.pw')
         user_row = credentials[credentials['user'] == username]
         if not user_row.empty:
             stored_hash = user_row.iloc[0]['password']
@@ -106,8 +113,13 @@ def username_exists(username):
     Returns:
         bool: True if the username exists, otherwise False.
     """
+    
+    if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
+        print("No password file found. Please add a user first.")
+        return False
+    
     try:
-        credentials = pd.read_csv(f'{RESULTS_DIR}/passwords.pw')
+        credentials = pd.read_csv(f'{PASSWORD_DIR}/passwords.pw')
         return username in credentials['user'].values
     except Exception:
         return False
@@ -122,13 +134,13 @@ def add_new_user(username, hashed_password):
         hashed_password (str): The hashed password.
     """
     try:
-        if os.path.exists(f'{RESULTS_DIR}/passwords.pw'):
-            credentials = pd.read_csv(f'{RESULTS_DIR}/passwords.pw')
+        if os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
+            credentials = pd.read_csv(f'{PASSWORD_DIR}/passwords.pw')
             new_user = pd.DataFrame({'user': [username], 'password': [hashed_password]})
             credentials = pd.concat([credentials, new_user], ignore_index=True)
         else:
             credentials = pd.DataFrame({'user': [username], 'password': [hashed_password]})
-        credentials.to_csv(f'{RESULTS_DIR}/passwords.pw', index=False)
+        credentials.to_csv(f'{PASSWORD_DIR}/passwords.pw', index=False)
     except Exception as e:
         st.error(f"Error adding new user: {e}")
 
@@ -202,6 +214,10 @@ def main():
             password_input = st.text_input("Password", type='password')
 
             if st.button("Login"):
+                
+                if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
+                    st.error("No password file found. Please add a user first.")
+                                    
                 if check_credentials(username_input, password_input):
                     user_static_folder = os.path.join('static', username_input)
                     if os.path.exists(user_static_folder):
@@ -230,8 +246,10 @@ def main():
             if st.button("SHOW USERS"):
                 st.session_state.show_users = not st.session_state.show_users
             if st.session_state.show_users:
+                if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
+                    st.error("No password file found. Please add a user first.")
                 try:
-                    credentials = pd.read_csv(f'{RESULTS_DIR}/passwords.pw')
+                    credentials = pd.read_csv(f'{PASSWORD_DIR}/passwords.pw')
                     users_list = credentials['user'].tolist()
                     st.write("Available Users:")
                     st.write(users_list)
@@ -394,7 +412,7 @@ def docking_module():
                 if project_name:
                     prefixed_project_name = f"{st.session_state.username}_{project_name}"
                     project_path = os.path.join(RESULTS_DIR, prefixed_project_name)
-                    template_path = os.path.join(RESULTS_DIR, 'template')
+                    template_path = os.path.join(DOCK_DIR, 'template')
 
                     st.session_state.project_name = project_name
                     st.session_state.prefixed_project_name = prefixed_project_name
@@ -622,7 +640,7 @@ def docking_module():
                     except Exception as e:
                         st.error(f"Error removing temporary directory: {e}")
         st.markdown("<hr>", unsafe_allow_html=True)
-        st.subheader("### OPTIONAL FLEXIBLE DOCKING ###")
+        st.subheader(" ___OPTIONAL FLEXIBLE DOCKING___ ")
 
         st.header("2B. Provide files for flexible docking")
         st.write("Generate appropriate files (rigid.pdbqt and flex.pdbqt) from a cleaned receptor structure using MGLTools/AutoDockTools. You need to provide the PDB code in step 2A before proceeding.")
