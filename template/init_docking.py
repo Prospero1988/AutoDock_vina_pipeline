@@ -480,7 +480,7 @@ def fix_pdb(input_pdb, output_pdb, chain_ID, relax, ph=7.4):
 
         # Finding the missing residuals
         fixer.findMissingResidues()
-
+        fixer.missingResidues = {}
         # Finding the missing atoms and adding them
         fixer.findMissingAtoms()
         fixer.addMissingAtoms()
