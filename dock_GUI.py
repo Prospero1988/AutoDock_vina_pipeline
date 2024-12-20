@@ -705,6 +705,22 @@ def docking_module():
         st.header("4. Docking Parameters")
         st.write("Adjust docking parameters if needed, or proceed with defaults.")
 
+
+        # Inicjalizacja zmiennej w stanie sesji (jeśli jeszcze nie istnieje)
+        if 'relax' not in st.session_state:
+            st.session_state.relax = False
+        st.write("")
+        st.write("An option that gently refines the receptor structure in just 5 steps using molecular mechanics with UFF force fields. It adjusts bond lengths and resolves overlapping atoms without significantly altering the receptor's spatial structure. This option is not recommended for FLEXIBLE Docking.")
+        # Dodanie checkboxa
+        if st.checkbox("Molecular mechanics protein relaxation"):
+            st.session_state.relax = True
+        else:
+            st.session_state.relax = False
+
+        # Wyświetlenie aktualnej wartości st.session_state.relax
+        st.write("MM Relaxation: ON" if st.session_state.relax else "MM Relaxation: OFF")
+
+
         parameters = st.session_state.parameters
         parameters_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'docking_parameters.csv')
 
@@ -811,6 +827,9 @@ def docking_module():
                 pdb_codes = [line.strip() for line in f if line.strip()]
         st.write(f"**PDB Codes:** {', '.join(pdb_codes) if pdb_codes else 'None'}")
         
+        if st.session_state.relax:
+            st.write("**Molecular Machanics Receptor Augmentation:** Enabled")
+        
         if rigid_arg and flex_arg:
             # Flexible mode: do not show PDB codes
             st.write("**Docking Mode:** Flexible docking")
@@ -869,6 +888,8 @@ conda activate auto_dock
                 if value:
                     cmd_line += f" --{param} {value}"
 
+            if st.session_state.relax:
+                cmd_line += f" --relax"
             script_content += cmd_line
             script_content += f"\necho 'Job submitted by {st.session_state.username}'\n"
 

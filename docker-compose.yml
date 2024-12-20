@@ -1,6 +1,6 @@
 services:
   autodock:
-    image: prospero88/autodock
+    image: prospero88/autodock:experimental2
     container_name: autodock_vina_machine
     hostname: auto_dock
     ports:

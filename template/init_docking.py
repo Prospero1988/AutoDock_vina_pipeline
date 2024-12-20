@@ -69,6 +69,8 @@ def main():
     parser.add_argument('--seed', type=int, default=1988, help='Seed for the random number generator (default: 1988).')
     parser.add_argument('--flex', default=None, help='Path to flexible receptor PDBQT file (optional).')
     parser.add_argument('--rigid', default=None, help='Path to rigid receptor PDBQT file (optional).')
+    parser.add_argument('--relax', action='store_true', help='Perform structure relaxation with MM on UFF with only 5 steps (optional).')
+
 
     args = parser.parse_args()
 
@@ -163,8 +165,8 @@ def main():
         else:
             smiles = Chem.MolToSmiles(mol)
 
-        mol = Chem.AddHs(mol)  # Dodaj brakujące atomy H
-        Chem.SanitizeMol(mol)
+        #mol = Chem.AddHs(mol)  # Dodaj brakujące atomy H
+        #Chem.SanitizeMol(mol)
         
         ligand_data_list.append({
             'mol': mol,
@@ -231,7 +233,7 @@ def main():
             shutil.move(downloaded_pdb_path, dirty_pdb)
 
             fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-            fix_pdb(dirty_pdb, fixed_pdb, chain_ID, ph=7.4)
+            fix_pdb(dirty_pdb, fixed_pdb, chain_ID, args.relax, ph=7.4)
 
             receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
             prepare_receptor(fixed_pdb, receptor_pdbqt)
@@ -450,32 +452,72 @@ def download_pdb(pdb_id, download_dir):
 
     return expected_pdb_filename, protein_name
 
+
 @logger_decorator
-def fix_pdb(input_pdb, output_pdb, chain_ID, ph=7.4):
+def fix_pdb(input_pdb, output_pdb, chain_ID, relax, ph=7.4):
     try:
         fixer = PDBFixer(filename=input_pdb)
-        fixer.removeHeterogens(keepWater=False)
-        fixer.findMissingResidues()
-        fixer.missingResidues = {}
-        fixer.addMissingHydrogens(ph)
+
+        # Downloading the list of strings
         chain_list = list(fixer.topology.chains())
         chain_ids = [chain.id for chain in chain_list]
 
         if chain_ID not in chain_ids:
             raise ValueError(f"Chain ID {chain_ID} not found in PDB structure {input_pdb}.")
 
+        # Finding the index of the selected string
         chain_to_keep_index = chain_ids.index(chain_ID)
 
-        logging.info(f"Maintaining chain index {chain_to_keep_index} (ID '{chain_ID}')")
+        logging.info(f"Maintaining a chain with an index {chain_to_keep_index} (ID '{chain_ID}')")
         print(f"Keeping the chain with the ID'{chain_ID}'")
 
+        # Removal of all other chains
         chains_to_remove = [i for i in range(len(chain_list)) if i != chain_to_keep_index]
         fixer.removeChains(chains_to_remove)
 
+        # Removal of heterogeneities (including water)
+        fixer.removeHeterogens(keepWater=False)
+
+        # Finding the missing residuals
+        fixer.findMissingResidues()
+
+        # Finding the missing atoms and adding them
+        fixer.findMissingAtoms()
+        fixer.addMissingAtoms()
+
+        # Adding missing protons
+        fixer.addMissingHydrogens(ph)
+
+        # Saving the repaired PDB file
         with open(output_pdb, 'w') as outfile:
             PDBFile.writeFile(fixer.topology, fixer.positions, outfile)
         logging.info(f"Fixed PDB saved as {output_pdb}")
 
+        if relax:
+            try:
+                logging.debug("Relaxing structure with RDKit.")
+                from rdkit import Chem
+                from rdkit.Chem import AllChem
+
+                mol = Chem.MolFromPDBFile(output_pdb, removeHs=False)
+                if mol is not None:
+                    if mol.GetNumConformers() == 0:
+                        logging.debug("No conformers found, embedding molecule.")
+                        AllChem.EmbedMolecule(mol)
+
+                    logging.debug("Performing UFF optimization (5 steps).")
+                    AllChem.UFFOptimizeMolecule(mol, maxIters=5)
+
+                    logging.debug("Saving relaxed structure back to PDB.")
+                    Chem.MolToPDBFile(mol, output_pdb)
+                    logging.info("Performed a quick 5-step UFF optimization with RDKit.")
+                else:
+                    logging.warning("RDKit could not read the fixed PDB for UFF optimization.")
+            except Exception as e:
+                logging.error("Error in relaxing PDB: %s", e)
+                raise
+
+        # Checking whether the file contains atoms
         parser = PDB.PDBParser(QUIET=True)
         structure = parser.get_structure('fixed', output_pdb)
         atom_count = len(list(structure.get_atoms()))
