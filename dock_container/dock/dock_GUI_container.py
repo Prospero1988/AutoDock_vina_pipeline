@@ -328,32 +328,32 @@ def docking_module():
             'pckt': {
                 'default': '1',
                 'value': '1',
-                'description': 'Pocket number (default: 1).'
+                'description': 'Pocket number (default: 1). Provide the number of the pocket to which the docking should be performed. The count and numbering of pockets is carried out by the P2RANK module. If you do not know the specific pocket, choose 1, and after docking, check which possible pockets were calculated by P2RANK.'
             },
             'exhaust': {
                 'default': '16',
                 'value': '16',
-                'description': 'Exhaustiveness of the global search (default: 16).'
+                'description': 'Exhaustiveness of the global search (default: 16). This parameter describes how many of the computer s resources will be used during docking and how long and persistently the algorithm will attempt to find suitable docking poses.'
             },
             'energy_range': {
                 'default': '4',
                 'value': '4',
-                'description': 'Maximum energy difference between the best and worst binding mode displayed (default: 4).'
+                'description': 'Maximum energy difference between the best and worst binding mode displayed (default: 4). This parameter defines which docking poses will be generated. For example, if the best pose achieves an energy of -10 kcal/mol, then with a parameter value of 4, the lowest energy pose displayed will be -6 kcal/mol. For a value of 2, the lowest energy pose displayed will be -8 kcal/mol.'
             },
             'num_modes': {
                 'default': '20',
                 'value': '20',
-                'description': 'Maximum number of binding modes to generate (default: 20).'
+                'description': 'Maximum number of binding modes to generate (default: 20). Defines the maximum number of poses that will be displayed in the results for a given docking.'
             },
             'seed': {
                 'default': '1988',
                 'value': '1988',
-                'description': 'Seed for random number generator (default: 1988).'
+                'description': 'Seed for random number generator (default: 1988).This parameter is introduced to ensure the reproducibility of results. If you encounter docking issues, you can try changing this parameter to build a new instance of the randomness generator.'
             },
             'tol_x': {
                 'default': '0',
                 'value': '0',
-                'description': 'Expansion of gridbox in X dimension (default: 0).'
+                'description': 'Expansion of gridbox in X dimension (default: 0).Use this parameter to expand or narrow the generated gridbox along the X axis by a given value. Remember that the gridbox changes its size from the center in both directions, so changing by 1 will shift it by 0.5 in each direction of the X axis. Negative values narrow the gridbox, and positive values expand it.'
             },
             'tol_y': {
                 'default': '0',
@@ -368,7 +368,7 @@ def docking_module():
             'offset_x': {
                 'default': '0',
                 'value': '0',
-                'description': 'Shift of gridbox center in X dimension (default: 0).'
+                'description': 'Shift of gridbox center in X dimension (default: 0).Moves the center of the gridbox along the specified axis by the given number, which may be positive or negative.'
             },
             'offset_y': {
                 'default': '0',
@@ -704,7 +704,20 @@ def docking_module():
     if st.session_state.project_valid and st.session_state.progress == 4:
         st.header("4. Docking Parameters")
         st.write("Adjust docking parameters if needed, or proceed with defaults.")
+        st.write("")
+        
+        if 'keepids' not in st.session_state:
+            st.session_state.keepids = True
+        st.write("")
+        st.write("If enabled then the receptor after processing retains the chain ID and original numbering from the PDB file. Sometimes this causes problems, so with disabled the chain gets the ID as “A” and the amino acid residues are renumbered from the number 1.")
+        # Dodanie checkboxa
+        if st.checkbox("Keep the original chain identifiers and residues", value=st.session_state.keepids):
+            st.session_state.relax = True
+        else:
+            st.session_state.relax = False
 
+        # Wyświetlenie aktualnej wartości st.session_state.relax
+        st.write("Keep original IDs: ON" if st.session_state.relax else "Keep original IDs: OFF")
 
         # Inicjalizacja zmiennej w stanie sesji (jeśli jeszcze nie istnieje)
         if 'relax' not in st.session_state:
@@ -829,7 +842,15 @@ def docking_module():
         
         if st.session_state.relax:
             st.write("**Molecular Machanics Receptor Augmentation:** Enabled")
+        else:
+            st.write("**Molecular Machanics Receptor Augmentation:** Disabled")
         
+        if st.session_state.keepids:
+            st.write("**Keep original chain and residues IDs:** Enabled")
+        else:
+            st.write("**Keep original chain and residues IDs:** Disabled")
+
+    
         if rigid_arg and flex_arg:
             # Flexible mode: do not show PDB codes
             st.write("**Docking Mode:** Flexible docking")
@@ -890,9 +911,13 @@ conda activate auto_dock
 
             if st.session_state.relax:
                 cmd_line += f" --relax"
+                
+            if st.session_state.keepids:
+                cmd_line += f" --keepids"
+                
             script_content += cmd_line
             script_content += f"\necho 'Job submitted by {st.session_state.username}'\n"
-
+            
             script_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'start_docking.sh')
             with open(script_path, 'w') as f:
                 f.write(script_content)

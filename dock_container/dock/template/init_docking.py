@@ -14,14 +14,18 @@ import gzip
 
 from Bio import PDB
 from Bio.PDB import PDBList
+from Bio.PDB.MMCIFParser import MMCIFParser
+from Bio.PDB.PDBIO import PDBIO
 import pandas as pd
 import numpy as np
 import pymol
 from pymol import cmd
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, rdmolops
 from rdkit.Chem import Draw
 from rdkit.Chem.Draw import rdMolDraw2D
+
+
 
 from pdbfixer import PDBFixer
 from openmm.app import PDBFile
@@ -70,7 +74,7 @@ def main():
     parser.add_argument('--flex', default=None, help='Path to flexible receptor PDBQT file (optional).')
     parser.add_argument('--rigid', default=None, help='Path to rigid receptor PDBQT file (optional).')
     parser.add_argument('--relax', action='store_true', help='Perform structure relaxation with MM on UFF with only 5 steps (optional).')
-
+    parser.add_argument('--keepids', action='store_true', help='Retain original chain ID and residue numbering.')
 
     args = parser.parse_args()
 
@@ -233,7 +237,7 @@ def main():
             shutil.move(downloaded_pdb_path, dirty_pdb)
 
             fixed_pdb = os.path.join(receptor_folder, f'{receptor_name}_fixed.pdb')
-            fix_pdb(dirty_pdb, fixed_pdb, chain_ID, args.relax, ph=7.4)
+            fix_pdb(dirty_pdb, fixed_pdb, chain_ID, args.relax, args.keepids, ph=7.4)
 
             receptor_pdbqt = os.path.join(receptor_folder, f"{receptor_name}.pdbqt")
             prepare_receptor(fixed_pdb, receptor_pdbqt)
@@ -370,6 +374,11 @@ def sanitize_ligand_name(name):
 
 @logger_decorator
 def download_pdb(pdb_id, download_dir):
+    """
+    Próbuje ściągnąć plik PDB z serwera RCSB. Jeśli to się nie uda,
+    pobiera plik mmCIF i konwertuje go do PDB za pomocą BioPython.
+    """
+
     if not os.path.exists(download_dir):
         os.makedirs(download_dir)
 
@@ -380,14 +389,16 @@ def download_pdb(pdb_id, download_dir):
         logging.info(f"Attempting to download PDB file for {pdb_id}...")
         pdb_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='pdb', pdir=download_dir)
 
+        # Obsługa pliku .gz - wypakowanie
         if pdb_file_path.endswith('.gz'):
             with gzip.open(pdb_file_path, 'rb') as f_in:
-                uncompressed_path = pdb_file_path[:-3]
+                uncompressed_path = pdb_file_path[:-3]  # usuwamy .gz
                 with open(uncompressed_path, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             os.remove(pdb_file_path)
             pdb_file_path = uncompressed_path
 
+        # Przenosimy na docelową nazwę (np. 1abc.pdb)
         shutil.move(pdb_file_path, expected_pdb_filename)
         logging.info(f"PDB file downloaded: {expected_pdb_filename}")
 
@@ -397,6 +408,7 @@ def download_pdb(pdb_id, download_dir):
 
         try:
             cif_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='mmCif', pdir=download_dir)
+            # Obsługa pliku .cif.gz
             if cif_file_path.endswith('.cif.gz'):
                 with gzip.open(cif_file_path, 'rb') as f_in:
                     uncompressed_path = cif_file_path[:-3]
@@ -406,26 +418,31 @@ def download_pdb(pdb_id, download_dir):
                 cif_file_path = uncompressed_path
 
             logging.info(f"mmCIF file downloaded: {cif_file_path}")
-            logging.info(f"Converting mmCIF to PDB for {pdb_id}...")
-            subprocess.run([
-                OBABEL_PATH,
-                "-i", "cif",
-                cif_file_path,
-                "-o", "pdb",
-                "-O", expected_pdb_filename
-            ], check=True)
+            logging.info(f"Converting mmCIF to PDB for {pdb_id} via BioPython...")
+
+            # ---- OTO NAJWAŻNIEJSZA ZMIANA: KONWERSJA PRZEZ BioPython ----
+            mmcif_parser = MMCIFParser(QUIET=True)
+            structure = mmcif_parser.get_structure(pdb_id, cif_file_path)
+
+            pdbio = PDBIO()
+            pdbio.set_structure(structure)
+            pdbio.save(expected_pdb_filename)
             logging.info(f"PDB file after conversion: {expected_pdb_filename}")
 
-            os.remove(cif_file_path)
-            logging.info(f"Removed mmCIF file: {cif_file_path}")
+            # Sprzątamy plik .cif, jeśli już niepotrzebny
+            if os.path.exists(cif_file_path):
+                os.remove(cif_file_path)
+                logging.info(f"Removed mmCIF file: {cif_file_path}")
 
         except Exception as e_cif:
             logging.error(f"Failed to download both PDB and mmCIF files for {pdb_id}: {e_cif}")
             raise FileNotFoundError(f"Could not download PDB or mmCIF file for {pdb_id}.")
 
+    # Ostateczny check, czy mamy plik PDB:
     if not os.path.exists(expected_pdb_filename):
         raise FileNotFoundError(f"PDB file for {pdb_id} was not found after attempts.")
 
+    # Opcjonalnie: wyciągamy nazwę białka z nagłówka PDB (może się nie udać)
     try:
         parser = PDB.PDBParser(QUIET=True)
         structure = parser.get_structure(pdb_id, expected_pdb_filename)
@@ -436,13 +453,14 @@ def download_pdb(pdb_id, download_dir):
         logging.warning(f"Could not extract protein name for {pdb_id}: {e_header}")
         protein_name = 'Unknown'
 
+    # Jeśli mamy protein_name, wstawiamy go w TITLE
     if protein_name != 'Unknown':
         with open(expected_pdb_filename, 'r') as f:
             pdb_lines = f.readlines()
         insert_index = 0
         for i, line in enumerate(pdb_lines):
             if line.startswith("HEADER"):
-                insert_index = i+1
+                insert_index = i + 1
                 break
         title_line = f"TITLE     {protein_name}\n"
         pdb_lines.insert(insert_index, title_line)
@@ -454,10 +472,25 @@ def download_pdb(pdb_id, download_dir):
 
 
 @logger_decorator
-def fix_pdb(input_pdb, output_pdb, chain_ID, relax, ph=7.4):
+def fix_pdb(input_pdb, output_pdb, chain_ID, relax, keepIds=False, ph=7.4):
+    
+    def pymol_fix_structure(input_pdb):
+        """Naprawia strukturę PDB za pomocą PyMOL."""
+        try:
+            cmd.load(input_pdb, "molecule")
+            cmd.remove("hydro")  # Usunięcie wszystkich wodorów
+            cmd.h_add("polymer")  # Dodanie brakujących wodorów
+            cmd.save(input_pdb)
+            cmd.delete("all")
+            logging.info(f"Structure fixed with PyMOL and saved to: {input_pdb}")
+        except Exception as e:
+            logging.error(f"Error during PyMOL structure fixing: {e}")
+            raise
+    
+    
     try:
         fixer = PDBFixer(filename=input_pdb)
-
+    
         # Downloading the list of strings
         chain_list = list(fixer.topology.chains())
         chain_ids = [chain.id for chain in chain_list]
@@ -490,32 +523,58 @@ def fix_pdb(input_pdb, output_pdb, chain_ID, relax, ph=7.4):
 
         # Saving the repaired PDB file
         with open(output_pdb, 'w') as outfile:
-            PDBFile.writeFile(fixer.topology, fixer.positions, outfile)
+            PDBFile.writeFile(fixer.topology, fixer.positions, outfile, keepIds=keepIds)
         logging.info(f"Fixed PDB saved as {output_pdb}")
 
         if relax:
             try:
+                logging.debug("Fixing structure with PyMOL.")
+                pymol_fix_structure(output_pdb)
                 logging.debug("Relaxing structure with RDKit.")
-                from rdkit import Chem
-                from rdkit.Chem import AllChem
-
                 mol = Chem.MolFromPDBFile(output_pdb, removeHs=False)
+
                 if mol is not None:
+                    
+                    # Embedding konformerów, jeśli brak
                     if mol.GetNumConformers() == 0:
-                        logging.debug("No conformers found, embedding molecule.")
-                        AllChem.EmbedMolecule(mol)
+                        try:
+                            logging.debug("No conformers found, embedding molecule.")
+                            AllChem.EmbedMolecule(mol)
+                        except Exception as embed_error:
+                            logging.warning(f"Error during conformer embedding: {embed_error}. Proceeding without embedding.")
 
-                    logging.debug("Performing UFF optimization (5 steps).")
-                    AllChem.UFFOptimizeMolecule(mol, maxIters=5)
+                    # Próba optymalizacji UFF
+                    try:
+                        logging.debug("Performing UFF optimization (5 steps).")
+                        AllChem.UFFOptimizeMolecule(mol, maxIters=5)
+                        logging.info("UFF optimization completed.")
+                    except Exception as uff_error:
+                        logging.warning(f"Error during UFF optimization: {uff_error}. Trying MMFF.")
 
-                    logging.debug("Saving relaxed structure back to PDB.")
-                    Chem.MolToPDBFile(mol, output_pdb)
-                    logging.info("Performed a quick 5-step UFF optimization with RDKit.")
+                        # Próba optymalizacji MMFF jako alternatywa
+                        try:
+                            logging.debug("Attempting MMFF optimization.")
+                            if Chem.MMFFHasAllMoleculeParams(mol):
+                                mmff_props = AllChem.MMFFGetMoleculeProperties(mol)
+                                AllChem.MMFFOptimizeMolecule(mol, mmff_props, maxIters=5)
+                                logging.info("MMFF optimization completed.")
+                            else:
+                                logging.warning("MMFF parameters are not available for this molecule. Skipping MMFF optimization.")
+                        except Exception as mmff_error:
+                            logging.warning(f"Error during MMFF optimization: {mmff_error}. Proceeding without optimization.")
+
+                    # Zapisanie zrelaksowanej struktury do pliku PDB
+                    try:
+                        logging.debug("Saving relaxed structure back to PDB.")
+                        Chem.MolToPDBFile(mol, output_pdb)
+                        logging.info("Relaxed structure saved successfully.")
+                    except Exception as save_error:
+                        logging.warning(f"Error saving relaxed PDB: {save_error}.")
                 else:
-                    logging.warning("RDKit could not read the fixed PDB for UFF optimization.")
+                    logging.warning("RDKit could not read the fixed PDB for optimization.")
             except Exception as e:
-                logging.error("Error in relaxing PDB: %s", e)
-                raise
+                logging.error(f"Unexpected error in RDKit processing: {e}. Proceeding without RDKit relaxation.")   
+    
 
         # Checking whether the file contains atoms
         parser = PDB.PDBParser(QUIET=True)
@@ -549,7 +608,7 @@ def prepare_receptor(input_pdb, output_pdbqt):
 def prepare_ligand(input_pdb, output_pdbqt):
     try:
         subprocess.run(
-            [OBABEL_PATH, "-i", "pdb", input_pdb, "-o", "pdbqt", "-O", output_pdbqt, "-h", "--partialcharge", "gasteiger"],
+            [OBABEL_PATH, "-i", "pdb", input_pdb, "-o", "pdbqt", "-O", output_pdbqt, "-h", "--gen3d", "--partialcharge", "gasteiger"],
             check=True
         )
         logging.info(f"Ligand prepared: {output_pdbqt}")
