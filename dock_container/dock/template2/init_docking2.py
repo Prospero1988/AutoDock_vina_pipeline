@@ -61,6 +61,9 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import rdMolDraw2D
 
+from pymol.cgo import CYLINDER
+from pymol.cgo import BEGIN, LINES, VERTEX, END, COLOR, LINEWIDTH
+
 # ----------------------------------------------
 # User-configurable paths to external tools:
 # ----------------------------------------------
@@ -70,7 +73,16 @@ OBABEL_PATH = "/usr/bin/obabel"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 pymol.finish_launching(['pymol', '-qc'])  # Start PyMOL in quiet mode (no GUI)
 
+# -------------------
+# Decorator for logging
+# -------------------
+def logger_decorator(func):
+    def wrapper(*args, **kwargs):
+        logging.info(f"Running {func.__name__}")
+        return func(*args, **kwargs)
+    return wrapper
 
+@logger_decorator
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -171,7 +183,7 @@ def main():
                 param_dict
             )
 
-            # Zapisz w pliku tekstowym pełne info o dokowaniu
+            # Write all docking poses to the text file
             with open(results_text_file, "a", encoding="utf-8") as rf:
                 rf.write(f"Ligand: {lig_name}\n")
                 rf.write(table_output)
@@ -182,7 +194,7 @@ def main():
             if affinities:
                 best_affinity = affinities[0][0]  # first is the best (lowest energy)
 
-            # 4C) Generate quick PyMOL visualization
+            # 4C) Generate PyMOL visualization
             docking_image = os.path.join(ligand_folder, f"{receptor_name}_{lig_name}.png")
             pymol_session = os.path.join(ligand_folder, f"{receptor_name}_{lig_name}.pse")
 
@@ -197,18 +209,18 @@ def main():
             except Exception as e:
                 logging.warning(f"Visualization error for ligand {lig_name}: {e}")
 
-            # Store info to docking_results
+            # Store info in docking_results for the HTML
             docking_results.append({
                 "name": lig_name,
                 "affinity": best_affinity,
                 "smiles": smiles_str,
                 "image": image_filename,       # 2D structure
-                "docking_image": docking_image, 
+                "docking_image": docking_image,
                 "output_pdbqt": output_pdbqt,
                 "pymol_session": pymol_session
             })
 
-        # 5) Tworzymy CSV z podsumowaniem dokowania ( name,affinity,smiles )
+        # 5) Create CSV summary ( name, affinity, smiles )
         csv_results_file = os.path.join(receptor_folder, f"{receptor_name}_results_in_CSV.csv")
         try:
             # Sort by best_affinity ascending (None last)
@@ -232,18 +244,18 @@ def main():
         except Exception as e:
             logging.error(f"Error writing summary CSV: {e}")
 
-        # 6) Generate a fancy HTML
+        # 6) Generate an HTML report
         html_path = os.path.join(receptor_folder, f"{receptor_name}_results.html")
         generate_html_results(
             html_path,
             receptor_name,
             ligand_file,     # original ligand file name
             docking_results,
-            receptor_path    # for link to receptor .pdbqt
+            receptor_path    # link to receptor .pdbqt
         )
         logging.info(f"Docking finished for receptor: {receptor_name} - results in {html_path}")
 
-    # After the loop is done, create the CSV "receptors_manual.csv"
+    # After processing all receptors, create "receptors_manual.csv"
     csv_path = os.path.join(receptors_dir, "receptors_manual.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -254,6 +266,7 @@ def main():
     print(f"Created '{csv_path}' with {len(processed_receptors)} receptors listed.")
 
 
+@logger_decorator
 def find_ligand_file(ligands_dir):
     """Find exactly one .sdf or .mol2 file in the ligands folder."""
     possible_files = []
@@ -269,6 +282,7 @@ def find_ligand_file(ligands_dir):
     return possible_files[0]
 
 
+@logger_decorator
 def read_ligands(ligand_file):
     """Read molecules from SDF or MOL2 using RDKit and (if needed) Open Babel conversion."""
     if ligand_file.lower().endswith(".sdf"):
@@ -299,6 +313,7 @@ def read_ligands(ligand_file):
         raise ValueError("Ligand file must be .sdf or .mol2.")
 
 
+@logger_decorator
 def get_ligand_name(mol, idx):
     """Get or create a ligand name from RDKit property _Name."""
     if mol.HasProp("_Name"):
@@ -308,6 +323,7 @@ def get_ligand_name(mol, idx):
     return f"ligand_{idx:03d}"
 
 
+@logger_decorator
 def sanitize_ligand_name(name):
     """Replace invalid chars with underscores."""
     valid_pattern = re.compile(r'[^A-Za-z0-9_-]')
@@ -318,6 +334,7 @@ def sanitize_ligand_name(name):
     return sanitized
 
 
+@logger_decorator
 def write_ligand_to_pdb(mol, pdb_path):
     """Save RDKit molecule to a PDB file (with 3D coords)."""
     try:
@@ -331,6 +348,7 @@ def write_ligand_to_pdb(mol, pdb_path):
         raise
 
 
+@logger_decorator
 def draw_molecule_to_file(mol, image_filename):
     """Generate a 2D depiction (SVG) of the RDKit molecule."""
     try:
@@ -342,9 +360,11 @@ def draw_molecule_to_file(mol, image_filename):
         options.useFixedFontSize = True
         options.minFontSize = 6
         options.bondLineWidth = 2
+
         drawer.SetDrawOptions(options)
         drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
+
         svg = drawer.GetDrawingText()
         svg = svg.replace('<?xml version=\'1.0\' encoding=\'utf-8\'?>\n', '')
         svg = svg.replace('xmlns:svg=', 'xmlns=')
@@ -357,6 +377,7 @@ def draw_molecule_to_file(mol, image_filename):
         logging.error(f"Error in generating 2D structure: {e}")
 
 
+@logger_decorator
 def prepare_ligand_for_docking(ligand_pdb, ligand_pdbqt):
     """Use Open Babel to convert ligand PDB -> PDBQT (with hydrogens)."""
     cmd_line = [
@@ -374,6 +395,7 @@ def prepare_ligand_for_docking(ligand_pdb, ligand_pdbqt):
         raise
 
 
+@logger_decorator
 def read_parameters(param_csv_path):
     """Reads param CSV with columns: parameter,value."""
     param_dict = {}
@@ -386,6 +408,7 @@ def read_parameters(param_csv_path):
     return param_dict
 
 
+@logger_decorator
 def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt, params_dict):
     """
     AutoDock Vina docking using values from param_dict:
@@ -396,29 +419,29 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt, params_dict):
     num_modes     = params_dict.get("num_modes", "9")
     seed          = params_dict.get("seed", "1988")
 
-    center_x = params_dict.get("grid_center_x", "0")
-    center_y = params_dict.get("grid_center_y", "0")
-    center_z = params_dict.get("grid_center_z", "0")
+    center_x = float(params_dict.get("grid_center_x", "0"))
+    center_y = float(params_dict.get("grid_center_y", "0"))
+    center_z = float(params_dict.get("grid_center_z", "0"))
 
-    size_x = params_dict.get("grid_size_x", "10")
-    size_y = params_dict.get("grid_size_y", "10")
-    size_z = params_dict.get("grid_size_z", "10")
+    size_x = float(params_dict.get("grid_size_x", "10"))
+    size_y = float(params_dict.get("grid_size_y", "10"))
+    size_z = float(params_dict.get("grid_size_z", "10"))
 
     vina_cmd = [
         VINA_PATH,
         "--receptor", receptor_pdbqt,
         "--ligand", ligand_pdbqt,
         "--out", output_pdbqt,
-        "--center_x", center_x,
-        "--center_y", center_y,
-        "--center_z", center_z,
-        "--size_x", size_x,
-        "--size_y", size_y,
-        "--size_z", size_z,
+        "--center_x", str(center_x),
+        "--center_y", str(center_y),
+        "--center_z", str(center_z),
+        "--size_x", str(size_x),
+        "--size_y", str(size_y),
+        "--size_z", str(size_z),
         "--exhaustiveness", exhaustiveness,
         "--energy_range", energy_range,
         "--num_modes", num_modes,
-        "--seed", seed
+        "--seed", str(seed)
     ]
 
     try:
@@ -452,6 +475,42 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, output_pdbqt, params_dict):
     return table_output, affinities
 
 
+@logger_decorator
+def add_axes(center=(0, 0, 0), length=10.0, radius=0.1):
+    """
+    Draw X/Y/Z axes in PyMOL, color-coded, with label pseudoatoms at the ends.
+    """
+    axes = [
+        CYLINDER, center[0], center[1], center[2],
+                   center[0] + length, center[1], center[2],
+                   radius,
+                   1.0, 0.0, 0.0,  # start color: red
+                   1.0, 0.0, 0.0,  # end color: red
+
+        CYLINDER, center[0], center[1], center[2],
+                   center[0], center[1] + length, center[2],
+                   radius,
+                   0.0, 1.0, 0.0,  # start color: green
+                   0.0, 1.0, 0.0,  # end color: green
+
+        CYLINDER, center[0], center[1], center[2],
+                   center[0], center[1], center[2] + length,
+                   radius,
+                   0.0, 0.0, 1.0,  # start color: blue
+                   0.0, 0.0, 1.0   # end color: blue
+    ]
+
+    cmd.load_cgo(axes, "axes")
+    # label pseudoatoms
+    cmd.pseudoatom(object='axis_x_end', pos=(center[0] + length, center[1], center[2]))
+    cmd.pseudoatom(object='axis_y_end', pos=(center[0], center[1] + length, center[2]))
+    cmd.pseudoatom(object='axis_z_end', pos=(center[0], center[1], center[2] + length))
+    cmd.label('axis_x_end', '"X"')
+    cmd.label('axis_y_end', '"Y"')
+    cmd.label('axis_z_end', '"Z"')
+
+
+@logger_decorator
 def generate_visualization(
     receptor_pdbqt,
     docked_ligand_pdbqt,
@@ -460,11 +519,8 @@ def generate_visualization(
     params_dict
 ):
     """
-    PyMOL-based visualization:
-    - Load receptor & ligand
-    - Show cartoon+sticks
-    - Optionally draw box
-    - Save .png and .pse
+    PyMOL-based visualization with the X/Y/Z axes centered at the grid box center,
+    plus the bounding box, plus saving .png and .pse.
     """
     cmd.reinitialize()
     cmd.load(receptor_pdbqt, "receptor")
@@ -476,11 +532,19 @@ def generate_visualization(
     cmd.color("cyan", "receptor")
     cmd.color("salmon", "ligand")
 
-    # Possibly draw docking box
+    # Attempt to read grid center from param_dict. If missing, fallback = (0,0,0).
     try:
         cx = float(params_dict["grid_center_x"])
         cy = float(params_dict["grid_center_y"])
         cz = float(params_dict["grid_center_z"])
+    except:
+        cx, cy, cz = 0.0, 0.0, 0.0
+
+    # Draw axes at the grid center
+    add_axes(center=(cx, cy, cz), length=10.0, radius=0.2)
+
+    # Draw bounding box if present
+    try:
         sx = float(params_dict["grid_size_x"])
         sy = float(params_dict["grid_size_y"])
         sz = float(params_dict["grid_size_z"])
@@ -488,9 +552,11 @@ def generate_visualization(
     except:
         pass
 
+    # Camera
     cmd.center("ligand")
     cmd.zoom("ligand", 10)
 
+    # Render
     cmd.ray(800, 600)
     cmd.png(png_output, width=800, height=600, dpi=72)
     logging.info(f"Saved docking image: {png_output}")
@@ -501,10 +567,11 @@ def generate_visualization(
     cmd.delete("all")
 
 
+@logger_decorator
 def draw_box(center, size):
-    """Simple bounding box as CGO."""
-    from pymol.cgo import BEGIN, LINES, VERTEX, END, COLOR, LINEWIDTH
-
+    """
+    Draws a simple bounding box (CGO) based on center=(cx, cy, cz) and size=(sx, sy, sz).
+    """
     cx, cy, cz = center
     sx, sy, sz = size
 
@@ -524,19 +591,19 @@ def draw_box(center, size):
         COLOR, 1.0, 0.0, 1.0,
         BEGIN, LINES,
 
-        # bottom rectangle
+        # Bottom rectangle
         VERTEX, min_x, min_y, min_z, VERTEX, max_x, min_y, min_z,
         VERTEX, max_x, min_y, min_z, VERTEX, max_x, max_y, min_z,
         VERTEX, max_x, max_y, min_z, VERTEX, min_x, max_y, min_z,
         VERTEX, min_x, max_y, min_z, VERTEX, min_x, min_y, min_z,
 
-        # top rectangle
+        # Top rectangle
         VERTEX, min_x, min_y, max_z, VERTEX, max_x, min_y, max_z,
         VERTEX, max_x, min_y, max_z, VERTEX, max_x, max_y, max_z,
         VERTEX, max_x, max_y, max_z, VERTEX, min_x, max_y, max_z,
         VERTEX, min_x, max_y, max_z, VERTEX, min_x, min_y, max_z,
 
-        # vertical lines
+        # Vertical lines
         VERTEX, min_x, min_y, min_z, VERTEX, min_x, min_y, max_z,
         VERTEX, max_x, min_y, min_z, VERTEX, max_x, min_y, max_z,
         VERTEX, max_x, max_y, min_z, VERTEX, max_x, max_y, max_z,
@@ -547,6 +614,7 @@ def draw_box(center, size):
     cmd.load_cgo(box, "docking_box")
 
 
+@logger_decorator
 def generate_html_results(
     html_file,
     receptor_name,
@@ -555,12 +623,12 @@ def generate_html_results(
     receptor_pdbqt
 ):
     """
-    Generates an HTML file with docking results (no references to pockets/P2RANK).
+    Generates an HTML file with docking results (no references to P2Rank).
     - 2D structure (SVG)
     - 3D docking image (PNG), clickable
     - Download links (.pdbqt, .pse)
     - Summaries sorted by best affinity
-    - Link to text file with full docking poses
+    - Link to text file with all docking poses
     """
     try:
         # Sort by best_affinity ascending
@@ -617,54 +685,52 @@ def generate_html_results(
                 aff       = item['affinity']
                 aff_str   = f"{aff:.2f}" if aff is not None else 'N/A'
 
-                image_svg_rel  = os.path.relpath(item['image'], os.path.dirname(html_file))  
-                docking_png_rel= os.path.relpath(item['docking_image'], os.path.dirname(html_file))
-                pdbqt_rel      = os.path.relpath(item['output_pdbqt'], os.path.dirname(html_file))
+                # Paths relative to HTML location
+                image_svg_rel  = os.path.relpath(item['image'],         os.path.dirname(html_file))
+                dock_img_rel   = os.path.relpath(item['docking_image'], os.path.dirname(html_file))
+                pdbqt_out_rel  = os.path.relpath(item['output_pdbqt'],  os.path.dirname(html_file))
                 pse_rel        = os.path.relpath(item['pymol_session'], os.path.dirname(html_file))
 
-                hf.write("<tr>\n")
-                hf.write(f"<td>{idx}</td>\n")
-                hf.write(f"<td>{lig_name}</td>\n")
-                hf.write(f'<td><img src="{image_svg_rel}" alt="{lig_name}" width="400"/></td>\n')
+                pdbqt_link_text = os.path.basename(item['output_pdbqt'])
+                pse_link_text   = os.path.basename(item['pymol_session'])
+
+                hf.write('<tr>\n')
+                hf.write(f'<td>{idx}</td>\n')
+                hf.write(f'<td>{lig_name}</td>\n')
+                hf.write(f'<td><img src="{image_svg_rel}" alt="2D structure" style="width:300px;"/></td>\n')
                 hf.write(
-                    f'<td><a href="{docking_png_rel}" target="_blank">'
-                    f'<img src="{docking_png_rel}" alt="{lig_name}" style="max-width:150px; max-height:150px;"/></a></td>\n'
+                    f'<td><a href="{dock_img_rel}" target="_blank">'
+                    f'<img src="{dock_img_rel}" alt="Docking Image" style="max-width:150px; max-height:150px;"/></a></td>\n'
                 )
                 hf.write(f'<td class="docking-energy">{aff_str}</td>\n')
-                hf.write(f'<td><a href="{pdbqt_rel}" download>Download PDBQT</a></td>\n')
-                hf.write(f'<td><a href="{pse_rel}" download>Download PyMOL</a></td>\n')
-                hf.write("</tr>\n")
+                hf.write(
+                    f'<td><a href="{pdbqt_out_rel}" download="{pdbqt_link_text}" type="application/octet-stream">'
+                    f'{pdbqt_link_text}</a></td>\n'
+                )
+                hf.write(
+                    f'<td><a href="{pse_rel}" download="{pse_link_text}" type="application/octet-stream">'
+                    f'{pse_link_text}</a></td>\n'
+                )
+                hf.write('</tr>\n')
 
-            hf.write("</table>\n")
-            hf.write("<br/>\n")
+            hf.write('</table>\n')
+            hf.write('<br/>\n')
 
-            # Link do pliku tekstowego z wszystkimi docking poses
-            text_results_file = f"{receptor_name}_results.txt"
+            # Link to the text file with all docking poses
+            text_file_name = f"{receptor_name}_results.txt"
             hf.write('<p style="text-align:center;">\n')
             hf.write(
-                f'<a href="{text_results_file}" target="_blank">'
-                f'All docking poses (text format). CLICK</a>\n'
+                f'<a href="{text_file_name}" target="_blank">'
+                f'Full docking poses in a text file (all modes). CLICK</a>\n'
             )
-            hf.write('</p><br/>\n')
+            hf.write('</p>\n')
 
-            hf.write('<p style="font-size: small; text-align: center; margin-top: 20px;">\n')
-            hf.write('Docking system based on <b>AutoDock Vina v.1.2.5</b>.<br/>\n')
-            hf.write('<b>Author:</b> Arkadiusz Leniak <b>email:</b> arkadiusz.leniak@gmail.com<br/>\n')
-            hf.write(
-                '<b>github:</b> '
-                '<a href="https://github.com/Prospero1988/AutoDock_vina_pipeline">'
-                'https://github.com/Prospero1988/AutoDock_vina_pipeline</a>\n'
-            )
-            hf.write("</p>\n")
+            hf.write('</body>\n')
+            hf.write('</html>\n')
 
-            hf.write("</body></html>\n")
-
-        logging.info(f"HTML results file generated: {html_file}")
-
+        logging.info(f"HTML report generated: {html_file}")
     except Exception as e:
         logging.error(f"Error in generating HTML results: {e}")
-        print(f"Error in generating HTML results: {e}")
-        raise
 
 
 if __name__ == "__main__":
