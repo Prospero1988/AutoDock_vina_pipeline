@@ -13,7 +13,7 @@ from functools import partial
 import requests
 from Bio.PDB import PDBParser
 import gzip
-
+import base64
 
 # Configure the Streamlit application
 st.set_page_config(page_title="Docking Program", layout="centered")
@@ -41,7 +41,6 @@ def start_shared_http_server():
     thread.start()
     return httpd
 
-
 def validate_project_name(name):
     """
     Validate and sanitize a given project name.
@@ -58,7 +57,6 @@ def validate_project_name(name):
     else:
         return None
 
-
 def hash_password(password):
     """
     Hash a password using bcrypt.
@@ -73,7 +71,6 @@ def hash_password(password):
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
-
 def check_credentials(username, password):
     """
     Check user credentials against stored hashes.
@@ -85,7 +82,6 @@ def check_credentials(username, password):
     Returns:
         bool: True if credentials match, otherwise False.
     """
-    
     if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
         print("No password file found. Please add a user first.")
         return False
@@ -102,7 +98,6 @@ def check_credentials(username, password):
         return False
     return False
 
-
 def username_exists(username):
     """
     Check if a given username already exists in the system.
@@ -113,7 +108,6 @@ def username_exists(username):
     Returns:
         bool: True if the username exists, otherwise False.
     """
-    
     if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
         print("No password file found. Please add a user first.")
         return False
@@ -123,7 +117,6 @@ def username_exists(username):
         return username in credentials['user'].values
     except Exception:
         return False
-
 
 def add_new_user(username, hashed_password):
     """
@@ -144,7 +137,6 @@ def add_new_user(username, hashed_password):
     except Exception as e:
         st.error(f"Error adding new user: {e}")
 
-
 def reset_state():
     """
     Reset the Streamlit session state except for essential keys.
@@ -153,7 +145,6 @@ def reset_state():
     for key in list(st.session_state.keys()):
         if key not in keys_to_keep:
             del st.session_state[key]
-
 
 def main():
     """
@@ -214,10 +205,9 @@ def main():
             password_input = st.text_input("Password", type='password')
 
             if st.button("Login"):
-                
                 if not os.path.exists(f'{PASSWORD_DIR}/passwords.pw'):
                     st.error("No password file found. Please add a user first.")
-                                    
+                                
                 if check_credentials(username_input, password_input):
                     user_static_folder = os.path.join('static', username_input)
                     if os.path.exists(user_static_folder):
@@ -268,16 +258,20 @@ def main():
     else:
         # If authenticated, display main menu or selected module
         if st.session_state.module == '':
+            
             st.title(f"Welcome, {st.session_state.username}!")
-            st.write("Please select a module to continue:")
-
+            st.markdown("<hr>", unsafe_allow_html=True)
+            st.write("")
+            st.header("Please select a module to continue:")
+            st.markdown("<hr>", unsafe_allow_html=True)
+            st.write("")
             modules = [
-                'DOCKING', 'QUEUE', 'SHOW RESULTS',
+                'SMART DOCKING', 'MANUAL DOCKING', 'QUEUE', 'SHOW RESULTS',
                 'DOWNLOAD RESULTS', 'DELETE RESULTS',
                 'PyMOL Installation GUIDE', 'LOG OUT'
             ]
             keys = [
-                'docking', 'queue', 'show_results',
+                'smart_docking', 'manual_docking', 'queue', 'show_results',
                 'download', 'delete', 'install_guide', 'logout'
             ]
 
@@ -293,13 +287,19 @@ def main():
                         st.rerun()
                     else:
                         st.session_state.module = module_name
-                        if module_name == 'DOCKING':
+                        # SMART DOCKING (dawne DOCKING)
+                        if module_name == 'SMART DOCKING':
                             st.session_state.progress = 1
+                        # MANUAL DOCKING – osobny progress
+                        if module_name == 'MANUAL DOCKING':
+                            st.session_state.progress_manual = 1
                         st.rerun()
                 st.write(" ")
 
-        elif st.session_state.module == 'DOCKING':
-            docking_module()
+        elif st.session_state.module == 'SMART DOCKING':
+            smart_docking_module()  # dawniej docking_module
+        elif st.session_state.module == 'MANUAL DOCKING':
+            manual_docking_module()
         elif st.session_state.module == 'QUEUE':
             queue_module()
         elif st.session_state.module == 'DOWNLOAD RESULTS':
@@ -311,16 +311,21 @@ def main():
         elif st.session_state.module == 'PyMOL Installation GUIDE':
             install_guide_module()
 
-def docking_module():
+
+# ----------------------------------------------------------------------------------------
+#   SMART DOCKING MODULE (Dawne "DOCKING" - bez zmian w logice poza nazwą i tytułami)
+# ----------------------------------------------------------------------------------------
+
+def smart_docking_module():
     """
-    Handle the docking workflow steps:
+    Handle the SMART DOCKING workflow steps:
     1. Project setup
     2. PDB codes input and chain selection OR flexible docking files (rigid & flex)
     3. Ligand file upload
     4. Docking parameters configuration
     5. Summary and job submission
     """
-    st.title("DOCKING Module")
+    st.title("SMART DOCKING Module")
 
     # Initialize parameters if not present
     if 'parameters' not in st.session_state:
@@ -333,27 +338,27 @@ def docking_module():
             'exhaust': {
                 'default': '16',
                 'value': '16',
-                'description': 'Exhaustiveness of the global search (default: 16). This parameter describes how many of the computer s resources will be used during docking and how long and persistently the algorithm will attempt to find suitable docking poses.'
+                'description': 'Exhaustiveness of the global search (default: 16). This parameter describes how many of the computers resources will be used during docking and how long and persistently the algorithm will attempt to find suitable docking poses.'
             },
             'energy_range': {
                 'default': '4',
                 'value': '4',
-                'description': 'Maximum energy difference between the best and worst binding mode displayed (default: 4). This parameter defines which docking poses will be generated. For example, if the best pose achieves an energy of -10 kcal/mol, then with a parameter value of 4, the lowest energy pose displayed will be -6 kcal/mol. For a value of 2, the lowest energy pose displayed will be -8 kcal/mol.'
+                'description': 'Maximum energy difference between the best and worst binding mode displayed (default: 4).'
             },
             'num_modes': {
                 'default': '20',
                 'value': '20',
-                'description': 'Maximum number of binding modes to generate (default: 20). Defines the maximum number of poses that will be displayed in the results for a given docking.'
+                'description': 'Maximum number of binding modes to generate (default: 20).'
             },
             'seed': {
                 'default': '1988',
                 'value': '1988',
-                'description': 'Seed for random number generator (default: 1988).This parameter is introduced to ensure the reproducibility of results. If you encounter docking issues, you can try changing this parameter to build a new instance of the randomness generator.'
+                'description': 'Seed for random number generator (default: 1988).'
             },
             'tol_x': {
                 'default': '0',
                 'value': '0',
-                'description': 'Expansion of gridbox in X dimension (default: 0).Use this parameter to expand or narrow the generated gridbox along the X axis by a given value. Remember that the gridbox changes its size from the center in both directions, so changing by 1 will shift it by 0.5 in each direction of the X axis. Negative values narrow the gridbox, and positive values expand it.'
+                'description': 'Expansion of gridbox in X dimension (default: 0).'
             },
             'tol_y': {
                 'default': '0',
@@ -368,7 +373,7 @@ def docking_module():
             'offset_x': {
                 'default': '0',
                 'value': '0',
-                'description': 'Shift of gridbox center in X dimension (default: 0).Moves the center of the gridbox along the specified axis by the given number, which may be positive or negative.'
+                'description': 'Shift of gridbox center in X dimension (default: 0).'
             },
             'offset_y': {
                 'default': '0',
@@ -461,7 +466,6 @@ def docking_module():
 
     # STEP 2: PDB Codes or Flexible docking files
     if st.session_state.project_valid and st.session_state.progress == 2:
-               
         st.header("2A. Enter PDB Codes")
         st.write("Enter PDB codes separated by commas or upload a CSV with PDB codes and chains.")
         pdb_input = st.text_area("PDB Codes", key='pdb_input')
@@ -518,7 +522,6 @@ def docking_module():
 
         # Download PDB/mmCIF files if PDB codes provided
         if st.session_state.pdb_codes and not st.session_state.chains_available:
-            
             st.info("Downloading and parsing PDB/mmCIF files...")
             parser = PDBParser(QUIET=True)
             failed_downloads = []
@@ -646,13 +649,13 @@ def docking_module():
         st.write("Generate appropriate files (rigid.pdbqt and flex.pdbqt) from a cleaned receptor structure using MGLTools/AutoDockTools. You need to provide the PDB code in step 2A before proceeding.")
         st.markdown("")
         
-        # Wgrywanie plików dla elastycznego dokowania
+        # Upload files for flexible docking
         rigid_file = st.file_uploader("Rigid receptor structure (.pdbqt)", type=['pdbqt'], key='rigid_file')
         flex_file = st.file_uploader("Flexible residues (.pdbqt)", type=['pdbqt'], key='flex_file')
 
         if st.button("Submit Flexible Docking Files"):
             if rigid_file and flex_file:
-                # Zapisanie plików na dysk
+                # Save files to disk
                 try:
                     rigid_path = os.path.join(project_receptors_path, 'rigid.pdbqt')
                     flex_path = os.path.join(project_receptors_path, 'flex.pdbqt')
@@ -664,7 +667,7 @@ def docking_module():
 
                     st.success("Rigid and flex files uploaded successfully.")
 
-                    # Przekazanie ścieżek do zmiennych sesji
+                    # Pass paths to session state
                     st.session_state.rigid = rigid_path
                     st.session_state.flex = flex_path
                     st.session_state.progress = 3
@@ -673,7 +676,6 @@ def docking_module():
                     st.error(f"Error saving files: {e}")
             else:
                 st.error("Please upload both rigid and flexible pdbqt files.")
-
 
     # STEP 3: Ligand Upload
     if st.session_state.project_valid and st.session_state.progress == 3:
@@ -710,13 +712,11 @@ def docking_module():
             st.session_state.keepids = True
         st.write("")
         st.write("If enabled then the receptor after processing retains the chain ID and original numbering from the PDB file. Sometimes this causes problems, so with disabled the chain gets the ID as “A” and the amino acid residues are renumbered from the number 1.")
-        # Dodanie checkboxa
         if st.checkbox("Keep the original chain identifiers and residues", value=st.session_state.keepids):
             st.session_state.relax = True
         else:
             st.session_state.relax = False
 
-        # Wyświetlenie aktualnej wartości st.session_state.relax
         st.write("Keep original IDs: ON" if st.session_state.relax else "Keep original IDs: OFF")
 
         # Inicjalizacja zmiennej w stanie sesji (jeśli jeszcze nie istnieje)
@@ -724,15 +724,12 @@ def docking_module():
             st.session_state.relax = False
         st.write("")
         st.write("An option that gently refines the receptor structure in just 5 steps using molecular mechanics with UFF force fields. It adjusts bond lengths and resolves overlapping atoms without significantly altering the receptor's spatial structure. This option is not recommended for FLEXIBLE Docking.")
-        # Dodanie checkboxa
         if st.checkbox("Molecular mechanics protein relaxation"):
             st.session_state.relax = True
         else:
             st.session_state.relax = False
 
-        # Wyświetlenie aktualnej wartości st.session_state.relax
         st.write("MM Relaxation: ON" if st.session_state.relax else "MM Relaxation: OFF")
-
 
         parameters = st.session_state.parameters
         parameters_csv_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name, 'docking_parameters.csv')
@@ -824,7 +821,6 @@ def docking_module():
 
         parameters = st.session_state.parameters
         # Check if we are in flexible mode or standard mode
-        # Flexible mode if rigid and flex are set
         rigid_arg = None
         flex_arg = None
         if 'rigid' in st.session_state and st.session_state.rigid not in (None, 'None'):
@@ -850,9 +846,7 @@ def docking_module():
         else:
             st.write("**Keep original chain and residues IDs:** Disabled")
 
-    
         if rigid_arg and flex_arg:
-            # Flexible mode: do not show PDB codes
             st.write("**Docking Mode:** Flexible docking")
             st.write(f"**Rigid File:** {os.path.basename(rigid_arg)}")
             st.write(f"**Flex File:** {os.path.basename(flex_arg)}")
@@ -900,9 +894,8 @@ conda activate auto_dock
             # Build the command
             cmd_line = "python3 init_docking.py --pdb_ids receptors.csv --ligands '{}'".format(st.session_state.ligand_file_name)
             if rigid_arg and flex_arg:
-                # Flexible mode: use --rigid and --flex
+                # Flexible mode
                 cmd_line += f" --rigid {rigid_arg} --flex {flex_arg}"
-                # No PDB IDs in flexible mode
 
             for param, details in parameters.items():
                 value = details['value']
@@ -911,7 +904,6 @@ conda activate auto_dock
 
             if st.session_state.relax:
                 cmd_line += f" --relax"
-                
             if st.session_state.keepids:
                 cmd_line += f" --keepids"
                 
@@ -929,6 +921,303 @@ conda activate auto_dock
             except Exception as e:
                 st.error(f"Error submitting job: {e}")
 
+
+# ----------------------------------------------------------------------------------------
+#   NOWY MODUŁ: MANUAL DOCKING
+# ----------------------------------------------------------------------------------------
+
+def manual_docking_module():
+    """
+    Handle the MANUAL DOCKING workflow:
+    STEP 1: Project Setup (identical to SMART DOCKING STEP 1)
+    STEP 2: Upload multiple .pdbqt receptor files, a ligand file, and CSV parameter files
+    STEP 3: Summary (project name, # of receptor files, # of param files, list them + ligand file)
+    STEP 6: Start Docking (simple command 'python3 init_docking2.py')
+    Each step has a button to return to the main menu.
+    """
+
+    # Przyciski powrotu do MENU na każdym etapie
+    
+    if st.button("Return to MENU", key='return_to_menu_manual'):
+        reset_state()
+        st.rerun()
+
+    # Inicjalizacja progresu w module MANUAL DOCKING
+    if 'progress_manual' not in st.session_state:
+        st.session_state.progress_manual = 1
+
+    man_progress = st.session_state.progress_manual
+
+    # --- STEP 1: Project Setup (identyczny jak w SMART DOCKING) ---
+    if man_progress == 1:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.title("MANUAL DOCKING Module")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.header("STEP 1: Project Setup")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.write("")
+        st.write("""
+This module requires you to upload a prepared receptor files in .pdbqt format and a CSV files with docking parameters, including a manually defined grid box. 
+
+An example parameter file can be downloaded in the next step. 
+
+The receptor .pdbqt files are best obtained from the files generated after docking in the SMART DOCKING module. 
+
+The receptor file name must be identical to the parameter file name (only different extension). 
+
+This is very important when you have multiple receptors in one docking task.
+
+        """)
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.write("")
+        if 'project_name_manual' not in st.session_state:
+            st.session_state.project_name_manual = ''
+        project_name_input = st.text_input("Provide a project name for your docking results.", value=st.session_state.project_name_manual)
+        st.write("")
+        
+        if st.button("Submit Project Name", key="submit_project_name_manual"):
+            if project_name_input:
+                project_name = validate_project_name(project_name_input)
+                if project_name:
+                    prefixed_project_name = f"{st.session_state.username}_{project_name}"
+                    project_path = os.path.join(RESULTS_DIR, prefixed_project_name)
+
+                    st.session_state.project_name_manual = project_name
+                    st.session_state.prefixed_project_name_manual = prefixed_project_name
+
+                    # Tworzymy katalog z template, jeśli nie istnieje
+                    if not os.path.exists(project_path):
+                        template_path = os.path.join(DOCK_DIR, 'template2')
+                        try:
+                            shutil.copytree(template_path, project_path)
+                            st.success(f"Project folder '{prefixed_project_name}' has been created.")
+                            st.session_state.project_manual_just_created = True
+                        except Exception as e:
+                            st.error(f"Error copying template: {e}")
+                    else:
+                        st.warning(f"Project '{project_name}' already exists.")
+                        st.session_state.project_manual_exists = True
+                        st.rerun()
+                else:
+                    st.error("Invalid project name. Use only alphanumeric characters, numbers, or underscores (_).")
+            else:
+                st.error("Please enter a project name.")
+
+        if 'project_manual_just_created' in st.session_state and st.session_state.project_manual_just_created:
+            if st.button("CONFIRM", key="confirm_project_creation_manual"):
+                st.session_state.project_manual_just_created = False
+                st.session_state.project_manual_valid = True
+                st.session_state.project_manual_exists = False
+                st.session_state.progress_manual = 2
+                st.rerun()
+
+        if 'project_manual_exists' not in st.session_state:
+            st.session_state.project_manual_exists = False
+
+        if st.session_state.project_manual_exists:
+            st.warning(f"⚠ Project '{st.session_state.project_name_manual}' already exists.")
+            decision = st.radio("Project already exists. Choose an action:", ("PROCEED", "CHANGE NAME"), key="decision_action_manual")
+            if st.button("Confirm Action", key="confirm_action_manual"):
+                if decision == "PROCEED":
+                    st.session_state.project_manual_valid = True
+                    st.session_state.project_manual_exists = False
+                    st.session_state.progress_manual = 2
+                    st.rerun()
+                elif decision == "CHANGE NAME":
+                    st.session_state.project_manual_valid = False
+                    st.session_state.project_name_manual = ''
+                    st.session_state.project_manual_exists = False
+                    st.session_state.progress_manual = 1
+                    st.rerun()
+
+    # --- STEP 2: Upload .pdbqt receptors, ligand, CSV parameters ---
+    if 'project_manual_valid' in st.session_state and st.session_state.project_manual_valid and st.session_state.progress_manual == 2:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.header("STEP 2: Files Upload")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # Katalogi
+        project_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name_manual)
+        receptors_folder = os.path.join(project_path, 'receptors')
+        ligands_folder = os.path.join(project_path, 'ligands')
+        parameters_folder = os.path.join(project_path, 'parameters')
+
+        os.makedirs(receptors_folder, exist_ok=True)
+        os.makedirs(ligands_folder, exist_ok=True)
+        os.makedirs(parameters_folder, exist_ok=True)
+
+        # 2A. Receptors in .pdbqt
+        st.subheader("Upload Receptor Files (.pdbqt)")
+        st.write("You can upload multiple .pdbqt files. They will be placed in the 'receptors' folder.")
+        uploaded_receptors = st.file_uploader("Select receptor .pdbqt files", type=['pdbqt'], accept_multiple_files=True, key="uploaded_receptors_manual")
+
+        if uploaded_receptors:
+            for rec_file in uploaded_receptors:
+                file_path = os.path.join(receptors_folder, rec_file.name)
+                with open(file_path, 'wb') as f:
+                    f.write(rec_file.getbuffer())
+            st.success("Receptor files uploaded successfully.")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # 2C. CSV parameter files
+        st.subheader("Upload Parameter Files (.csv)")
+        st.write("The CSV files with docking parameters (including manual grid box) will go to 'parameters' folder.")
+        uploaded_params = st.file_uploader("Select parameter .csv files", type=['csv'], accept_multiple_files=True, key="uploaded_params_manual")
+
+        if uploaded_params:
+            for param_file in uploaded_params:
+                param_file_path = os.path.join(parameters_folder, param_file.name)
+                with open(param_file_path, 'wb') as f:
+                    f.write(param_file.getbuffer())
+            st.success("Parameter files uploaded successfully.")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # 2B. Ligand file(s)
+        st.subheader("Upload Ligand Files")
+        st.write("Identical approach as in SMART DOCKING: you can upload ONE .mol2 or ONE .sdf file with ligands.")
+
+        # Zmieniamy klucz w file_uploader, np. na "my_ligand_file_uploader"
+        uploaded_ligand = st.file_uploader(
+            "Choose a ligand file (.mol2 or .sdf)",
+            type=['mol2', 'sdf'],
+            key="my_ligand_file_uploader"
+        )
+
+        if uploaded_ligand is not None:
+            ligand_file_name = uploaded_ligand.name
+            if ligand_file_name.lower().endswith(('.mol2', '.sdf')):
+                ligands_folder = os.path.join(project_path, 'ligands')
+                os.makedirs(ligands_folder, exist_ok=True)
+
+                ligand_file_path = os.path.join(ligands_folder, ligand_file_name)
+                with open(ligand_file_path, 'wb') as f:
+                    f.write(uploaded_ligand.getbuffer())
+
+                # Teraz nazwa pliku może być zapisana w innej zmiennej st.session_state,
+                # unikając konfliktu z kluczem używanym przez file_uploader.
+                st.session_state["ligand_file_manual_name"] = ligand_file_name
+                st.success(f"Ligand file '{ligand_file_name}' uploaded.")
+            else:
+                st.error("Invalid ligand format. Only .mol2 or .sdf allowed.")
+
+        # Dalej możesz np. wyświetlać:
+        if "ligand_file_manual_name" in st.session_state:
+            st.write("Currently selected ligand file:", st.session_state["ligand_file_manual_name"])
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # 2D. Download example parameters_example.csv
+        st.subheader("Download Example Parameter File")
+        st.write("An example CSV file (parameters_example.csv) can be downloaded here.")
+
+        example_file_path = os.path.join(project_path, "parameters_example.csv")
+        if not os.path.exists(example_file_path):
+            st.info("No 'parameters_example.csv' found in your project folder.")
+        else:
+            with open(example_file_path, 'rb') as exf:
+                exdata = exf.read()
+            b64 = base64.b64encode(exdata).decode()
+            href = f'<a href="data:text/csv;base64,{b64}" download="parameters_example.csv">Download parameters_example.csv</a>'
+            st.markdown(href, unsafe_allow_html=True)
+      
+        st.markdown("<hr>", unsafe_allow_html=True)
+        # Przycisk przejścia do STEP 3
+        if st.button("Confirm and Proceed to SUMMARY"):
+            st.session_state.progress_manual = 3
+            st.rerun()
+
+    # --- STEP 3: SUMMARY (lista plików itp.) ---
+    if 'project_manual_valid' in st.session_state and 'progress_manual' in st.session_state and st.session_state.progress_manual == 3:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.header("STEP 3: SUMMARY")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        project_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name_manual)
+        receptors_folder = os.path.join(project_path, 'receptors')
+        parameters_folder = os.path.join(project_path, 'parameters')
+        ligands_folder = os.path.join(project_path, 'ligands')
+
+        st.write("")
+        st.write(f"**Project Name:** {st.session_state.project_name_manual}")
+        st.write("")
+        
+        # Receptors
+        receptor_files = []
+        if os.path.exists(receptors_folder):
+            receptor_files = [f for f in os.listdir(receptors_folder) if f.endswith(".pdbqt")]
+        st.write(f"**Number of receptor files:** {len(receptor_files)}")
+
+        # Show receptor filenames
+        st.write("**Receptor Files:**")
+        if receptor_files:
+            for rf in receptor_files:
+                st.write(f"- {rf}")
+        else:
+            st.write("No receptor files uploaded.")
+        st.write("")
+
+        # Parameter files
+        param_files = []
+        if os.path.exists(parameters_folder):
+            param_files = [f for f in os.listdir(parameters_folder) if f.endswith(".csv")]
+        st.write(f"**Number of parameter files:** {len(param_files)}")
+
+        # Show parameter filenames
+        st.write("**Parameter Files:**")
+        if param_files:
+            for pf in param_files:
+                st.write(f"- {pf}")
+        else:
+            st.write("No parameter files uploaded.")
+        st.write("")
+        
+        # Ligand file
+        if 'ligand_file_manual_name' in st.session_state:
+            st.write(f"**Ligand File:** {st.session_state['ligand_file_manual_name']}")
+        else:
+            st.write("No ligand file uploaded.")
+
+        # Po potwierdzeniu -> do STEPU 4 (dokowanie)
+        st.write("")
+        if st.button("Confirm and Start Docking"):
+            st.session_state.progress_manual = 4
+
+            # Przygotowanie pliku do SLURMA (analogicznie do SMART DOCKING, ale cmd_line prosty)
+            project_path = os.path.join(RESULTS_DIR, st.session_state.prefixed_project_name_manual)
+            script_path = os.path.join(project_path, 'start_docking_manual.sh')
+
+            script_content = f"""#!/bin/bash
+#SBATCH --job-name={st.session_state.username}_{st.session_state.project_name_manual}
+#SBATCH --output=manual_docking_output.log
+#SBATCH --error=manual_docking_error.log
+#SBATCH --ntasks=1
+#SBATCH --time=INFINITE
+#SBATCH --partition=main
+
+source ~/miniconda/etc/profile.d/conda.sh
+conda activate auto_dock
+
+# Simple command line for manual docking
+cmd_line="python3 init_docking2.py"
+$cmd_line
+
+echo "Job submitted by {st.session_state.username}"
+"""
+
+            with open(script_path, 'w') as f:
+                f.write(script_content)
+            os.chmod(script_path, 0o755)
+
+            try:
+                subprocess.run(['sbatch', script_path], cwd=os.path.dirname(script_path))
+                st.success("Manual docking job has been submitted to the queue.")
+                #st.session_state.progress_manual = 1
+            except Exception as e:
+                st.error(f"Error submitting manual docking job: {e}")
+            st.markdown("")
+            
+# ----------------------------------------------------------------------------------------
+#       POZOSTAŁE MODUŁY BEZ ZMIAN
+# ----------------------------------------------------------------------------------------
 
 def queue_module():
     """
@@ -981,7 +1270,6 @@ def queue_module():
         reset_state()
         st.rerun()
 
-
 def download_results_module():
     """
     Allow the user to select their projects and download them as a ZIP archive.
@@ -1029,7 +1317,6 @@ def download_results_module():
         reset_state()
         st.rerun()
 
-
 def delete_results_module():
     """
     Allow the user to delete selected projects from their results directory.
@@ -1076,14 +1363,20 @@ def delete_results_module():
         reset_state()
         st.rerun()
 
-
 def results_module():
     """
     Display results for a selected project and receptor, allowing the user to:
     - View interactive HTML results
     - Download CSV result files
     """
+
+    if st.button("Return to MENU", key='return_to_menu_delete'):
+        reset_state()
+        st.rerun()
+
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.title("SHOW RESULTS Module")
+    st.markdown("<hr>", unsafe_allow_html=True)
 
     if 'host_ip' not in st.session_state:
         st.session_state.host_ip = 'localhost'
@@ -1102,7 +1395,7 @@ def results_module():
 
     if not project_names:
         st.info("You have no projects to display.")
-        if st.button("Return to MENU", key='return_to_menu_results'):
+        if st.button("Return to MENU", key='return_to_menu_results_empty'):
             reset_state()
             st.rerun()
         return
@@ -1110,70 +1403,129 @@ def results_module():
     st.write("Select a project:")
     selected_project = st.selectbox("Your Projects", project_names, key='selected_project')
 
-    if selected_project:
-        project_folder = os.path.join(dock_folder, user_prefix + selected_project)
-        receptors_csv_path = os.path.join(project_folder, 'receptors', 'receptors.csv')
+    if not selected_project:
+        if st.button("Return to MENU", key='return_to_menu_results_no_sel'):
+            reset_state()
+            st.rerun()
+        return
 
-        if os.path.exists(receptors_csv_path):
-            df_receptors = pd.read_csv(receptors_csv_path, header=None, names=['PDB_ID', 'Chain_ID'])
-            df_receptors['PDB_ID'] = df_receptors['PDB_ID'].str.strip().str.upper()
-            df_receptors['Chain_ID'] = df_receptors['Chain_ID'].str.strip().str.upper()
-            df_receptors['Combined'] = df_receptors['PDB_ID'] + "_" + df_receptors['Chain_ID']
-            receptors = df_receptors['Combined'].tolist()
-        else:
-            st.error(f"Receptors file not found: {receptors_csv_path}")
+    project_folder = os.path.join(dock_folder, user_prefix + selected_project)
+    receptors_csv_path = os.path.join(project_folder, 'receptors', 'receptors.csv')
+    receptors_manual_csv_path = os.path.join(project_folder, 'receptors', 'receptors_manual.csv')
+
+    # 1. Check if 'receptors.csv' exists
+    if os.path.exists(receptors_csv_path):
+        # Original logic
+        df_receptors = pd.read_csv(receptors_csv_path, header=None, names=['PDB_ID', 'Chain_ID'])
+        df_receptors['PDB_ID'] = df_receptors['PDB_ID'].str.strip().str.upper()
+        df_receptors['Chain_ID'] = df_receptors['Chain_ID'].str.strip().str.upper()
+        df_receptors['Combined'] = df_receptors['PDB_ID'] + "_" + df_receptors['Chain_ID']
+        receptors = df_receptors['Combined'].tolist()
+
+        if not receptors:
+            st.error("No receptors found in receptors.csv.")
             return
 
-        if receptors:
-            st.write("Select a receptor:")
-            selected_receptor = st.selectbox("Receptors", receptors, key='selected_receptor')
+        st.write("Select a receptor:")
+        selected_receptor = st.selectbox("Receptors", receptors, key='selected_receptor')
 
-            if selected_receptor:
-                receptor_folder = os.path.join(project_folder, selected_receptor)
-                if os.path.exists(receptor_folder):
-                    html_files = [f for f in os.listdir(receptor_folder) if f.endswith('.html')]
-                    if html_files:
-                        html_file_name = html_files[0]
+        if not selected_receptor:
+            if st.button("Return to MENU", key='return_to_menu_results_no_receptor_sel'):
+                reset_state()
+                st.rerun()
+            return
 
-                        if st.button("SHOW INTERACTIVE RESULTS"):
-                            static_receptor_folder = os.path.join('static', st.session_state.username, selected_project, selected_receptor)
-                            os.makedirs(os.path.dirname(static_receptor_folder), exist_ok=True)
-                            if os.path.exists(static_receptor_folder):
-                                shutil.rmtree(static_receptor_folder)
-
-                            try:
-                                shutil.copytree(receptor_folder, static_receptor_folder)
-                            except Exception as e:
-                                st.error(f"Error copying files: {e}")
-                                return
-
-                            html_url = f"http://{st.session_state.host_ip}:{HTTP_SERVER_PORT}/{st.session_state.username}/{selected_project}/{selected_receptor}/{html_file_name}"
-                            st.markdown(f'<a href="{html_url}" target="_blank">Open Interactive Results in New Tab</a>', unsafe_allow_html=True)
-                    else:
-                        st.error("No HTML file found for this receptor.")
-
-                    st.markdown("<hr>", unsafe_allow_html=True)
-                    csv_files = [f for f in os.listdir(receptor_folder) if f.endswith('.csv')]
-                    if csv_files:
-                        csv_file_path = os.path.join(receptor_folder, csv_files[0])
-                        with open(csv_file_path, 'rb') as f:
-                            csv_data = f.read()
-                        st.download_button(
-                            label="DOWNLOAD RESULTS IN CSV",
-                            data=csv_data,
-                            file_name=csv_files[0],
-                            mime='text/csv'
-                        )
-                    else:
-                        st.error("No CSV file found for this receptor.")
-                else:
-                    st.error(f"Receptor folder '{selected_receptor}' does not exist.")
+        receptor_folder = os.path.join(project_folder, selected_receptor)
+        if not os.path.exists(receptor_folder):
+            st.error(f"Receptor folder '{selected_receptor}' does not exist.")
         else:
-            st.error("No receptors found in receptors.csv.")
+            handle_receptor_results(receptor_folder, selected_project, selected_receptor)
 
-    if st.button("Return to MENU", key='return_to_menu_results'):
+    # 2. If 'receptors.csv' is missing, check 'receptors_manual.csv'
+    elif os.path.exists(receptors_manual_csv_path):
+        # New simpler logic for manual docking
+        df_manual = pd.read_csv(receptors_manual_csv_path)
+        # we assume there's a header "receptors"
+        # This CSV has a single column "receptors"
+        if 'receptors' not in df_manual.columns:
+            st.error(f"'receptors_manual.csv' does not have the correct header 'receptors'.")
+            return
+
+        receptors = df_manual['receptors'].dropna().astype(str).tolist()
+        if not receptors:
+            st.error(f"No entries found in {receptors_manual_csv_path}.")
+            return
+
+        st.write("Select a receptor:")
+        selected_receptor = st.selectbox("Receptors", receptors, key='selected_receptor_manual')
+
+        if not selected_receptor:
+            if st.button("Return to MENU", key='return_to_menu_results_no_sel_manual'):
+                reset_state()
+                st.rerun()
+            return
+
+        # For manual docking, assume there's a folder named exactly like the receptor
+        receptor_folder = os.path.join(project_folder, selected_receptor)
+        if not os.path.exists(receptor_folder):
+            st.error(f"Receptor folder '{selected_receptor}' does not exist. (Manual Docking)")
+        else:
+            handle_receptor_results(receptor_folder, selected_project, selected_receptor)
+
+    else:
+        # Neither file exists
+        st.error("No 'receptors.csv' or 'receptors_manual.csv' found in the project.")
+        return
+
+    if st.button("Return to MENU", key='return_to_menu_results_final'):
         reset_state()
         st.rerun()
+
+
+def handle_receptor_results(receptor_folder, selected_project, selected_receptor):
+    """
+    Simple helper function to handle showing interactive HTML results and CSV files
+    inside a given receptor folder.
+    """
+    # 1) Find an HTML file
+    html_files = [f for f in os.listdir(receptor_folder) if f.endswith('.html')]
+    if html_files:
+        html_file_name = html_files[0]
+
+        if st.button("SHOW INTERACTIVE RESULTS"):
+            static_receptor_folder = os.path.join('static', st.session_state.username, selected_project, selected_receptor)
+            os.makedirs(os.path.dirname(static_receptor_folder), exist_ok=True)
+            if os.path.exists(static_receptor_folder):
+                shutil.rmtree(static_receptor_folder)
+
+            try:
+                shutil.copytree(receptor_folder, static_receptor_folder)
+            except Exception as e:
+                st.error(f"Error copying files: {e}")
+                return
+
+            html_url = f"http://{st.session_state.host_ip}:{HTTP_SERVER_PORT}/{st.session_state.username}/{selected_project}/{selected_receptor}/{html_file_name}"
+            st.markdown(f'<a href="{html_url}" target="_blank">Open Interactive Results in New Tab</a>', unsafe_allow_html=True)
+    else:
+        st.error("No HTML file found for this receptor.")
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # 2) Find any CSV file to download (results CSV)
+    csv_files = [f for f in os.listdir(receptor_folder) if f.endswith('.csv')]
+    if csv_files:
+        # Offer the first one for download
+        csv_file_path = os.path.join(receptor_folder, csv_files[0])
+        with open(csv_file_path, 'rb') as f:
+            csv_data = f.read()
+        st.download_button(
+            label="DOWNLOAD RESULTS IN CSV",
+            data=csv_data,
+            file_name=csv_files[0],
+            mime='text/csv'
+        )
+    else:
+        st.error("No CSV file found for this receptor.")
 
 
 def install_guide_module():
@@ -1272,7 +1624,6 @@ def install_guide_module():
     if st.button("RETURN TO MENU", key='return_to_menu_install_guide'):
         reset_state()
         st.rerun()
-
 
 if __name__ == "__main__":
     main()

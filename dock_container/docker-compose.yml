@@ -1,7 +1,7 @@
 services:
   autodock:
-    image: prospero88/autodock:experimental2
-    container_name: autodock_vina_machine
+    image: prospero88/autodock:latest
+    container_name: vina_experimental
     hostname: auto_dock
     ports:
       - "8501:8501"  # Port open for Streamlit

@@ -375,9 +375,11 @@ def sanitize_ligand_name(name):
 @logger_decorator
 def download_pdb(pdb_id, download_dir):
     """
-    Próbuje ściągnąć plik PDB z serwera RCSB. Jeśli to się nie uda,
-    pobiera plik mmCIF i konwertuje go do PDB za pomocą BioPython.
+    Attempts to download the PDB file for a given pdb_id from RCSB.
+    If unavailable, tries mmCIF and converts it to PDB via Open Babel.
+    Returns: (expected_pdb_filename, protein_name)
     """
+    import gzip
 
     if not os.path.exists(download_dir):
         os.makedirs(download_dir)
@@ -385,20 +387,21 @@ def download_pdb(pdb_id, download_dir):
     pdbl = PDBList()
     expected_pdb_filename = os.path.join(download_dir, f"{pdb_id}.pdb")
 
+    # Try standard PDB download
     try:
         logging.info(f"Attempting to download PDB file for {pdb_id}...")
         pdb_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='pdb', pdir=download_dir)
 
-        # Obsługa pliku .gz - wypakowanie
+        # If it's gzipped, decompress
         if pdb_file_path.endswith('.gz'):
             with gzip.open(pdb_file_path, 'rb') as f_in:
-                uncompressed_path = pdb_file_path[:-3]  # usuwamy .gz
+                uncompressed_path = pdb_file_path[:-3]
                 with open(uncompressed_path, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             os.remove(pdb_file_path)
             pdb_file_path = uncompressed_path
 
-        # Przenosimy na docelową nazwę (np. 1abc.pdb)
+        # Move final PDB to the expected name
         shutil.move(pdb_file_path, expected_pdb_filename)
         logging.info(f"PDB file downloaded: {expected_pdb_filename}")
 
@@ -406,10 +409,11 @@ def download_pdb(pdb_id, download_dir):
         logging.warning(f"Failed to download PDB file for {pdb_id}: {e_pdb}")
         logging.info(f"Attempting to download mmCIF file for {pdb_id}...")
 
+        # Attempt mmCIF
         try:
             cif_file_path = pdbl.retrieve_pdb_file(pdb_id, file_format='mmCif', pdir=download_dir)
-            # Obsługa pliku .cif.gz
-            if cif_file_path.endswith('.cif.gz'):
+            # Decompress if needed
+            if cif_file_path.endswith('.gz'):
                 with gzip.open(cif_file_path, 'rb') as f_in:
                     uncompressed_path = cif_file_path[:-3]
                     with open(uncompressed_path, 'wb') as f_out:
@@ -418,45 +422,48 @@ def download_pdb(pdb_id, download_dir):
                 cif_file_path = uncompressed_path
 
             logging.info(f"mmCIF file downloaded: {cif_file_path}")
-            logging.info(f"Converting mmCIF to PDB for {pdb_id} via BioPython...")
+            logging.info(f"Converting mmCIF to PDB for {pdb_id} via Open Babel...")
 
-            # ---- OTO NAJWAŻNIEJSZA ZMIANA: KONWERSJA PRZEZ BioPython ----
-            mmcif_parser = MMCIFParser(QUIET=True)
-            structure = mmcif_parser.get_structure(pdb_id, cif_file_path)
-
-            pdbio = PDBIO()
-            pdbio.set_structure(structure)
-            pdbio.save(expected_pdb_filename)
+            # Use Open Babel for the conversion
+            cmd_line = [
+                OBABEL_PATH,
+                "-i", "cif", cif_file_path,
+                "-o", "pdb",
+                "-O", expected_pdb_filename
+            ]
+            subprocess.run(cmd_line, check=True)
             logging.info(f"PDB file after conversion: {expected_pdb_filename}")
 
-            # Sprzątamy plik .cif, jeśli już niepotrzebny
+            # Remove the mmCIF file
             if os.path.exists(cif_file_path):
                 os.remove(cif_file_path)
                 logging.info(f"Removed mmCIF file: {cif_file_path}")
 
         except Exception as e_cif:
-            logging.error(f"Failed to download both PDB and mmCIF files for {pdb_id}: {e_cif}")
+            logging.error(f"Failed to download or convert mmCIF for {pdb_id}: {e_cif}")
             raise FileNotFoundError(f"Could not download PDB or mmCIF file for {pdb_id}.")
 
-    # Ostateczny check, czy mamy plik PDB:
+    # Final check
     if not os.path.exists(expected_pdb_filename):
-        raise FileNotFoundError(f"PDB file for {pdb_id} was not found after attempts.")
+        raise FileNotFoundError(f"Could not obtain PDB file for {pdb_id}.")
 
-    # Opcjonalnie: wyciągamy nazwę białka z nagłówka PDB (może się nie udać)
+    # Optionally extract protein name from the PDB header
+    protein_name = "Unknown"
     try:
-        parser = PDB.PDBParser(QUIET=True)
+        from Bio.PDB import PDBParser
+        parser = PDBParser(QUIET=True)
         structure = parser.get_structure(pdb_id, expected_pdb_filename)
         header = structure.header
         protein_name = header.get('name', 'Unknown')
         logging.info(f"Protein name for {pdb_id}: {protein_name}")
     except Exception as e_header:
         logging.warning(f"Could not extract protein name for {pdb_id}: {e_header}")
-        protein_name = 'Unknown'
 
-    # Jeśli mamy protein_name, wstawiamy go w TITLE
-    if protein_name != 'Unknown':
+    # Insert TITLE line if we found protein_name
+    if protein_name != "Unknown":
         with open(expected_pdb_filename, 'r') as f:
             pdb_lines = f.readlines()
+        # Insert after HEADER if it exists
         insert_index = 0
         for i, line in enumerate(pdb_lines):
             if line.startswith("HEADER"):
@@ -608,7 +615,7 @@ def prepare_receptor(input_pdb, output_pdbqt):
 def prepare_ligand(input_pdb, output_pdbqt):
     try:
         subprocess.run(
-            [OBABEL_PATH, "-i", "pdb", input_pdb, "-o", "pdbqt", "-O", output_pdbqt, "-h", "--gen3d", "--partialcharge", "gasteiger"],
+            [OBABEL_PATH, "-i", "pdb", input_pdb, "-o", "pdbqt", "-O", output_pdbqt, "--ph", "7.4" "--gen3d", "--partialcharge", "gasteiger"],
             check=True
         )
         logging.info(f"Ligand prepared: {output_pdbqt}")

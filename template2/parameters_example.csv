@@ -1,0 +1,12 @@
+parameter,value
+exhaust,40
+energy_range,1
+num_modes,5
+seed,1988
+grid_center_x,107
+grid_center_y,114
+grid_center_z,143
+grid_size_x,17
+grid_size_y,20
+grid_size_z,35
+
