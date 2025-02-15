@@ -26,6 +26,10 @@ Due to the rather lengthy and manual process of local installation, which is add
 
 In this repository, there is a downloadable file [output_example.zip](https://github.com/Prospero1988/AutoDock_vina_pipeline/raw/refs/heads/main/output_example.zip) which contains an archive with a zipped sample output for the docking program.
 
+## The latest user manual
+
+[Automated and Manual Molecular Docking Pipeline.pdf](https://github.com/Prospero1988/AutoDock_vina_pipeline/blob/main/manuals/Automated%20and%20Manual%20Molecular%20Docking%20Pipeline.pdf)
+
 ### Problems and support
 
 If you encounter any problems with the installation or operation of the docking program, do not hesitate to contact me. I will do my best to assist you.
