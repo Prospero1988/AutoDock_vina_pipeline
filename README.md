@@ -32,6 +32,22 @@ If you encounter any problems with the installation or operation of the docking 
 
 ## UPDATES
 
+### **v.2.0**
+
+### New Feature: Manual Docking
+
+The **Manual Docking** module provides an advanced docking workflow for users who require precise control over receptor and ligand configurations. Unlike the standard docking module, Manual Docking allows users to:
+- Upload multiple receptor files (.pdbqt) along with individually assigned parameter files (.csv).
+- Define custom docking parameters per receptor, including grid box settings.
+- Use a single ligand file (.mol2 or .sdf) for docking across all receptors.
+- Manage docking tasks directly through the GUI.
+
+Docking is executed via *init_docking2.py*, ensuring structured output with CSV summaries, visualization images, and full docking pose details.
+
+This module is ideal for workflows requiring multiple receptor-ligand combinations and customized docking parameters.
+
+### **v.1.5**
+
 - Added option with Flexible Residues Docking. However, it requires generating with separate tools (AutoDock Tools) two files rigid.pdbqt and flex.pdbqt containing definition of immobile receptor structure and flexible residues, which are to be dynamically adjusted to the ligand.
 - Some PDB codes in the PDB database do not correspond to actual .pdb files, because only mmCIF files are available. The program, in case it cannot download a .pdb file, tries to download a .cif file. After successfully downloading it, it converts it to .pdb and passes it on for further processing and docking.
 - Automatic selection of a chain with a receptor did not work due to the lack of uniformity in chain naming. Now, when PDB codes are given, the structures are retrieved, a list of chains is loaded, and the user has to select for each receptor the appropriate chain containing the receptor, or docking site, from a drop-down list. Alternatively, an input can be prepared in the form of a csv file that contains PDB codes and chain IDs. After loading the CSV file, a list of receptors with selected chains is shown, which can be modified, or accepted and passed on for further calculations.
