@@ -146,6 +146,36 @@ def reset_state():
         if key not in keys_to_keep:
             del st.session_state[key]
 
+
+def remove_user_prefix(proj_name, username):
+    """
+    Removes the user's username prefix from the beginning of the given `proj_name` string.
+
+    The prefix can be either:
+    - username (e.g., "john")
+    - username_ (e.g., "john_")
+
+    Case-insensitive.
+
+    Args:
+        proj_name (str): The project name entered by the user.
+        username (str): The username to be removed if it appears as a prefix.
+
+    Returns:
+        str: The cleaned project name without the username prefix.
+    """
+    import re
+
+    # Compile with IGNORECASE. For example, if username == "john",
+    # the pattern ^john_? matches "john" or "john_"
+    pattern = re.compile(rf"^{re.escape(username)}_?", re.IGNORECASE)
+
+    # Replace only the first occurrence at the start of the string
+    cleaned_name = pattern.sub("", proj_name, count=1)
+    return cleaned_name
+
+
+
 def main():
     """
     The main function handling the overall application workflow, including:
@@ -413,6 +443,7 @@ def smart_docking_module():
 
         if st.button("Submit Project Name", key="submit_project_name"):
             if project_name_input:
+                project_name_input = remove_user_prefix(project_name_input, st.session_state.username)
                 project_name = validate_project_name(project_name_input)
                 if project_name:
                     prefixed_project_name = f"{st.session_state.username}_{project_name}"
@@ -977,6 +1008,7 @@ This is very important when you have multiple receptors in one docking task.
         
         if st.button("Submit Project Name", key="submit_project_name_manual"):
             if project_name_input:
+                project_name_input = remove_user_prefix(project_name_input, st.session_state.username)
                 project_name = validate_project_name(project_name_input)
                 if project_name:
                     prefixed_project_name = f"{st.session_state.username}_{project_name}"
