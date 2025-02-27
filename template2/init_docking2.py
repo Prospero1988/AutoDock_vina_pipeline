@@ -255,6 +255,21 @@ def main():
         )
         logging.info(f"Docking finished for receptor: {receptor_name} - results in {html_path}")
 
+        # 7) Copy all output_pdbqt files to "03_ligands_PDBQT" folder
+        ligands_pdbqt_folder = os.path.join(receptor_folder, "03_ligands_PDBQT")
+        os.makedirs(ligands_pdbqt_folder, exist_ok=True)
+
+        copied_count = 0
+        for item in docking_results:
+            src_pdbqt = item["output_pdbqt"]
+            if os.path.isfile(src_pdbqt):
+                shutil.copy(src_pdbqt, ligands_pdbqt_folder)
+                copied_count += 1
+
+        logging.info(
+            f"Copied {copied_count} .pdbqt files to: {ligands_pdbqt_folder}"
+        )
+
     # After processing all receptors, create "receptors_manual.csv"
     csv_path = os.path.join(receptors_dir, "receptors_manual.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
